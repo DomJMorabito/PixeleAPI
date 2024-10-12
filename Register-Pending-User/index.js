@@ -1,8 +1,8 @@
-import express from 'express';
-import mysql from 'mysql2/promise';
-import serverless from 'serverless-http';
-import crypto from 'crypto';
-import Filter from 'bad-words';
+const express = require('express');
+const mysql = require('mysql2/promise');
+const serverless = require('serverless-http');
+const crypto = require('crypto');
+const Filter = require('bad-words');
 
 const app = express();
 
@@ -36,24 +36,50 @@ app.post('/users/pending', async (req, res) => {
         return res.status(400).json({ message: "Seriously?" });
     }
 
-    const verification_token = generateToken();
-
     try {
         const connection = await mysql.createConnection(dbConfig);
-        const query = 'INSERT INTO pending_users (username, email, password, verification_token) VALUES (?, ?, ?, ?)';
-        await connection.query(query, [username, email, password, verification_token]);
+
+        const checkQueryUsername = `
+            SELECT username FROM pending_users WHERE username = ?
+            UNION
+            SELECT username FROM users WHERE username = ?
+        `;
+
+        const checkQueryEmail = `
+            SELECT email FROM pending_users WHERE email = ?
+            UNION
+            SELECT email FROM users WHERE email = ?
+        `;
+
+        const [usernameRows] = await connection.query(checkQueryUsername, [username, username]);
+        const [emailRows] = await connection.query(checkQueryEmail, [email, email]);
+
+        if (usernameRows.length > 0 && emailRows.length > 0) {
+            return res.status(409).json({ message: "Both Email and Username are already in use" });
+        }
+
+        if (emailRows.length > 0) {
+            return res.status(409).json({ message: "Email already in use" });
+        }
+
+        if (usernameRows.length > 0) {
+            return res.status(409).json({ message: "Username already in use" });
+        }
+
+        const insertQuery = `
+            INSERT INTO pending_users (username, email, password, verification_token) 
+            VALUES (?, ?, ?, ?)
+        `;
+        const verification_token = generateToken();
+        await connection.query(insertQuery, [username, email, password, verification_token]);
         await connection.end();
 
         return res.status(201).json({
-            message: "User successfully added to pending_users.",
+            message: "Registration Successful!",
             verification_token: verification_token,
         });
     } catch (error) {
         console.error('Error inserting into database:', error);
-
-        if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ message: "Username or email already in use." });
-        }
         return res.status(500).json({ message: "Internal Server Error" });
     }
 });
