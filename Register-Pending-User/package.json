@@ -8,5 +8,12 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "bad-words": "^4.0.0",
+    "crypto": "^1.0.1",
+    "express": "^4.21.1",
+    "mysql2": "^3.11.3",
+    "serverless-http": "^3.2.0"
+  }
 }
