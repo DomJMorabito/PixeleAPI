@@ -1,8 +1,8 @@
-const express = require('express');
-const mysql = require('mysql2/promise');
-const serverless = require('serverless-http');
-const crypto = require('crypto');
-const Filter = require('bad-words');
+import express from 'express';
+import mysql from 'mysql2/promise';
+import serverless from 'serverless-http';
+import crypto from 'crypto';
+import { Filter } from 'bad-words';
 
 const app = express();
 
@@ -84,7 +84,7 @@ app.post('/users/pending', async (req, res) => {
     }
 });
 
-module.exports.handler = serverless(app);
+export const handler = serverless(app);
 
 // Environment Variables for MySQL Connection:
 
