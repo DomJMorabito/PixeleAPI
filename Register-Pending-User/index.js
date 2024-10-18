@@ -37,8 +37,12 @@ app.post('/users/pending', async (req, res) => {
         return res.status(400).json({ message: "Enter a valid email." });
     }
 
-    if (!validateUsername(username)) {
+    if (!validateUsernameLength(username)) {
         return res.status(400).json({ message: "Username must be 5-18 characters." });
+    }
+
+    if (!validateUsernameSpecialCharacters(username)) {
+        return res.status(400).json({ message: "Username cannot contain any special characters."});
     }
 
     if (!validatePassword(password)) {
@@ -68,15 +72,15 @@ app.post('/users/pending', async (req, res) => {
         const [emailRows] = await connection.query(checkQueryEmail, [email, email]);
 
         if (usernameRows.length > 0 && emailRows.length > 0) {
-            return res.status(409).json({ message: "Both Email and Username are already in use" });
+            return res.status(409).json({ message: "Both Email and Username are already in use." });
         }
 
         if (emailRows.length > 0) {
-            return res.status(409).json({ message: "Email already in use" });
+            return res.status(409).json({ message: "Email already in use." });
         }
 
         if (usernameRows.length > 0) {
-            return res.status(409).json({ message: "Username already in use" });
+            return res.status(409).json({ message: "Username already in use." });
         }
 
         const hashedPassword = await bcryptjs.hash(password, 10);
@@ -90,7 +94,7 @@ app.post('/users/pending', async (req, res) => {
         await connection.end();
 
         return res.status(201).json({
-            message: "Registration Successful!",
+            message: "Added to pending_users!",
             verification_token: verification_token,
         });
     } catch (error) {
@@ -125,8 +129,15 @@ const validateEmail = (email) => {
 
 // Validate username length:
 
-const validateUsername = (username) => {
+const validateUsernameLength = (username) => {
     return username.length >= 5 && username.length <= 18;
+};
+
+// Validate username characters:
+
+const validateUsernameSpecialCharacters = (username) => {
+    const specialCharRegex = /^[a-zA-Z0-9]+$/;
+    return specialCharRegex.test(username);
 };
 
 // Validate password structure:
