@@ -15,7 +15,7 @@ app.use(express.json());
 
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -121,13 +121,13 @@ const generateToken = () => {
 const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
-}
+};
 
 // Validate username length:
 
 const validateUsername = (username) => {
     return username.length >= 5 && username.length <= 18;
-}
+};
 
 // Validate password structure:
 
@@ -137,7 +137,7 @@ const validatePassword = (password) => {
     const containsSpecial = /[^A-Za-z0-9]/.test(password);
 
     return lengthValid && containsNumber && containsSpecial;
-}
+};
 
 /**
  * import mysql from 'mysql2/promise';
