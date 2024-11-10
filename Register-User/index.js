@@ -31,30 +31,80 @@ app.use((req, res, next) => {
 app.post('/users/register', async (req, res) => {
     let { username, email, password } = req.body;
     const filter = new Filter();
-    username = username.toLowerCase();
 
     if (!username || !email || !password) {
-        return res.status(400).json({ message: 'All fields are required.' });
+        return res.status(400).json({
+            message: 'All fields are required.',
+            code: 'MISSING_FIELDS',
+            details: {
+                missingFields: [
+                    !username && 'usernameInput',
+                    !email && 'emailInput',
+                    !password && 'passwordInput'
+                ].filter(Boolean)
+            }
+        });
     }
 
+    username = username.toLowerCase();
+
     if (!validateEmail(email)) {
-        return res.status(400).json({ message: "Enter a valid email." });
+        return res.status(400).json({
+            message: 'Enter a valid email.',
+            code: 'INVALID_EMAIL',
+            details: {
+                providedEmail: email
+            }
+        });
     }
 
     if (!validateUsernameLength(username)) {
-        return res.status(400).json({ message: "Username must be 5-18 characters." });
+        return res.status(400).json({
+            message: 'Username must be 5-18 characters.',
+            code: 'INVALID_USERNAME',
+            details: {
+                requirements: {
+                    minLength: 5,
+                    maxLength: 18
+                }
+            }
+        });
     }
 
     if (!validateUsernameSpecialCharacters(username)) {
-        return res.status(400).json({ message: "Username cannot contain any special characters." });
+        return res.status(400).json({
+            message: 'Username cannot contain any special characters.',
+            code: 'INVALID_USERNAME',
+            details: {
+                requirements: {
+                    allowedCharacters: 'alphanumeric'
+                }
+            }
+        });
     }
 
     if (!validatePassword(password)) {
-        return res.status(400).json({ message: "Password requirements not met." });
+        return res.status(400).json({
+            message: 'Password requirements not met.',
+            code: 'INVALID_PASSWORD',
+            details: {
+                requirements: {
+                    minLength: 8,
+                    requiresNumber: true,
+                    requiresSpecialChar: true
+                }
+            }
+        });
     }
 
     if (filter.isProfane(username)) {
-        return res.status(400).json({ message: "Seriously?" });
+        return res.status(400).json({
+            message: 'Seriously?',
+            code: 'INAPPROPRIATE_CONTENT',
+            details: {
+                username
+            }
+        });
     }
 
     try {
@@ -62,15 +112,34 @@ app.post('/users/register', async (req, res) => {
         const usernameExists = await checkForDuplicateUsername(username);
 
         if (emailExists && usernameExists) {
-            return res.status(409).json({ message: "Both Email and Username are already in use." });
+            return res.status(409).json({
+                message: 'Both Email and Username are already in use.',
+                code: 'DUPLICATE_CREDENTIALS',
+                details: {
+                    email,
+                    username
+                }
+            });
         }
 
         if (emailExists) {
-            return res.status(409).json({ message: "Email already in use." });
+            return res.status(409).json({
+                message: 'Email already in use.',
+                code: 'EMAIL_EXISTS',
+                details: {
+                    email
+                }
+            });
         }
 
         if (usernameExists) {
-            return res.status(409).json({ message: "Username already in use." });
+            return res.status(409).json({
+                message: 'Username already in use.',
+                code: 'USERNAME_EXISTS',
+                details: {
+                    username
+                }
+            });
         }
 
         await signUp({
@@ -84,10 +153,30 @@ app.post('/users/register', async (req, res) => {
         });
         return res.status(201).json({
             message: 'Registration Successful! Please check your email for verification.',
+            code: 'REGISTRATION_SUCCESS',
+            details: {
+                email,
+                username
+            }
         });
     } catch (error) {
         console.error('Cognito sign up error:', error);
-        return res.status(500).json({ message: "Internal Server Error" });
+        if (error.code === 'LimitExceededException') {
+            return res.status(429).json({
+                message: 'Too many attempts. Please try again later.',
+                code: 'RATE_LIMIT_EXCEEDED',
+                details: {
+                    retryAfter: '30s'
+                }
+            });
+        }
+        return res.status(500).json({
+            message: 'Internal Server Error',
+            code: 'SERVER_ERROR',
+            details: {
+                error: error.message
+            }
+        });
     }
 });
 
@@ -99,7 +188,7 @@ const checkForDuplicateEmail = async (email) => {
     try {
         const params = {
             UserPoolId: process.env.AWS_USER_POOL_ID,
-            Filter: `email = "${email}"`,
+            Filter: `email = '${email}'`,
             Limit: 1,
         };
         const result = await cognito.listUsers(params).promise();
@@ -115,7 +204,7 @@ const checkForDuplicateUsername = async (username) => {
     try {
         const params = {
             UserPoolId: process.env.AWS_USER_POOL_ID,
-            Filter: `username = "${username}"`,
+            Filter: `username = '${username}'`,
             Limit: 1,
         };
         const result = await cognito.listUsers(params).promise();
