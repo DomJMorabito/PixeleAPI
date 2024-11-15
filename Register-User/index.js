@@ -239,5 +239,3 @@ const validatePassword = (password) => {
 
     return lengthValid && containsNumber && containsSpecial;
 };
-
-//hello
