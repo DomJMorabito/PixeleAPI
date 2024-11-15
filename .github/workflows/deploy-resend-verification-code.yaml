@@ -1,10 +1,10 @@
-name: Deploy Register-User Lambda Function
+name: Deploy Resend-Verification-Code Lambda Function
 
 on:
     push:
         branches: [ main ]
         paths:
-            - 'Register-User/**'
+            - 'Resend-Verification-Code/**'
     workflow_dispatch:
 
 jobs:
@@ -12,7 +12,7 @@ jobs:
         runs-on: ubuntu-latest
         defaults:
             run:
-                working-directory: ./Register-User
+                working-directory: ./Resend-Verification-Code
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v3
@@ -25,4 +25,4 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ secrets.AWS_REGION }}
-            - run: aws lambda update-function-code --function-name Register-User --zip-file fileb://function.zip
+            - run: aws lambda update-function-code --function-name Resend-Verification-Code --zip-file fileb://function.zip
