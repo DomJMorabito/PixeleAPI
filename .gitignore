@@ -39,8 +39,3 @@ next-env.d.ts
 
 # .zip files
 *.zip
-
-# deploy
-
-.serverless
-.serverless/
