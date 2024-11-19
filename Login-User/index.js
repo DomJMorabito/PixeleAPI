@@ -1,6 +1,6 @@
 import express from 'express';
 import serverless from 'serverless-http';
-import { signIn } from 'aws-amplify/auth';
+import { signIn, getCurrentUser } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
 
 Amplify.configure({
@@ -45,21 +45,31 @@ app.post('/users/login', async (req, res) => {
     identifier = identifier.toLowerCase();
 
     try {
-        const signInResult = await signIn({
+        const { isSignedIn, nextStep } = await signIn({
             username: identifier,
             password
         });
 
+        if (!isSignedIn || nextStep ) {
+            return res.status(400).json({
+                message: 'Further authorization required.',
+                code: 'AUTHENTICATION_INCOMPLETE',
+                details: {
+                    nextStep
+                }
+            });
+        }
+
+        const { tokens } = await getCurrentUser();
+
         return res.status(200).json({
-            token: signInResult.signInUserSession.accessToken.jwtToken,
+            token: tokens.accessToken.toString(),
             user: {
-                username: signInResult.username,
-                email: signInResult.attributes.email,
-                userId: signInResult.attributes.id
+                username: identifier,
             },
             session: {
-                isValid: signInResult.signInUserSession.isValid(),
-                expiresAt: new Date(signInResult.signInUserSession.accessToken.payload.exp * 1000)
+                isValid: true,
+                expiresAt: new Date(tokens.accessToken.payload.exp * 1000)
             }
         });
     } catch (error) {
