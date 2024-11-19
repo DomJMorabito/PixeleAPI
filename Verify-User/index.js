@@ -5,14 +5,16 @@ import AWS from 'aws-sdk';
 const cognito = new AWS.CognitoIdentityServiceProvider();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
+    console.log(`${req.method} ${req.path} - IP: ${req.ip}`);
     next();
 });
 

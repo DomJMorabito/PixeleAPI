@@ -1,0 +1,18 @@
+{
+  "name": "login-user",
+  "version": "1.0.0",
+  "tyoe": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "aws-amplify": "^6.8.2",
+    "express": "^4.21.1",
+    "serverless-http": "^3.2.0"
+  }
+}
