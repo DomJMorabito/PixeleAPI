@@ -1,6 +1,6 @@
 import express from 'express';
 import serverless from 'serverless-http';
-import { signIn, signOut, getCurrentUser } from 'aws-amplify/auth';
+import { signIn, signOut, getCurrentUser, fetchUserAttributes } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
 
 Amplify.configure({
@@ -56,6 +56,8 @@ app.post('/users/login', async (req, res) => {
             password
         });
 
+        console.log('Sign in result:', { isSignedIn, nextStep });
+
         if (!isSignedIn && (!nextStep || nextStep.signInStep !== 'DONE')) {
             return res.status(400).json({
                 message: 'Further authorization required.',
@@ -66,10 +68,15 @@ app.post('/users/login', async (req, res) => {
             });
         }
 
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         try {
-            const currentUser = await getCurrentUser();
+            const [currentUser, attributes] = await Promise.all([
+                getCurrentUser(),
+                fetchUserAttributes()
+            ]);
+            console.log('Current user result:', currentUser);
+            console.log('User attributes:', attributes);
             if (!currentUser.tokens?.accessToken) {
                 return res.status(500).json({
                     message: 'No access token available after authentication.',
