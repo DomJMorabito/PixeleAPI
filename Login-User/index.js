@@ -1,6 +1,6 @@
 import express from 'express';
 import serverless from 'serverless-http';
-import { signIn, getCurrentUser } from 'aws-amplify/auth';
+import { signIn, signOut, getCurrentUser } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
 
 Amplify.configure({
@@ -45,6 +45,12 @@ app.post('/users/login', async (req, res) => {
     identifier = identifier.toLowerCase();
 
     try {
+        try {
+            await signOut();
+        } catch (error) {
+            console.log('SignOut error (non-critical):', error);
+        }
+
         const { isSignedIn, nextStep } = await signIn({
             username: identifier,
             password
@@ -60,20 +66,36 @@ app.post('/users/login', async (req, res) => {
             });
         }
 
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         try {
-            const { tokens } = await getCurrentUser();
+            const currentUser = await getCurrentUser();
+            if (!currentUser.tokens?.accessToken) {
+                return res.status(500).json({
+                    message: 'No access token available after authentication.',
+                    code: 'TOKEN_UNAVAILABLE',
+                    details: {
+                        error: 'Access token missing from authenticated session'
+                    }
+                });
+            }
             return res.status(200).json({
-                token: tokens.accessToken.toString(),
+                token: currentUser.tokens.accessToken.toString(),
                 user: {
-                    username: identifier,
+                    username: identifier
                 },
                 session: {
                     isValid: true,
-                    expiresAt: new Date(tokens.accessToken.payload.exp * 1000)
+                    expiresAt: new Date(currentUser.tokens.accessToken.payload.exp * 1000)
                 }
             });
         } catch (getUserError) {
             console.error('Error getting current user:', getUserError);
+            try {
+                await signOut();
+            } catch (error) {
+                console.log('Cleanup signOut error (non-critical):', error);
+            }
             return res.status(500).json({
                 message: 'Failed to complete authentication',
                 code: 'AUTH_COMPLETION_FAILED',
@@ -83,6 +105,11 @@ app.post('/users/login', async (req, res) => {
             });
         }
     } catch (error) {
+        try {
+            await signOut();
+        } catch (error) {
+            console.log('Cleanup signOut error (non-critical):', error);
+        }
         switch (error.name) {
             case 'NotAuthorizedException':
                 return res.status(401).json({
