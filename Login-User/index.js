@@ -1,6 +1,6 @@
 import express from 'express';
 import serverless from 'serverless-http';
-import { signIn, signOut, getCurrentUser, fetchUserAttributes } from 'aws-amplify/auth';
+import { signIn, signOut, getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
 
 Amplify.configure({
@@ -71,13 +71,11 @@ app.post('/users/login', async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         try {
-            const [currentUser, attributes] = await Promise.all([
-                getCurrentUser(),
-                fetchUserAttributes()
-            ]);
-            console.log('Current user result:', currentUser);
-            console.log('User attributes:', attributes);
-            if (!currentUser.tokens?.accessToken) {
+            const currentUser = await getCurrentUser();
+            const session = await fetchAuthSession();
+            console.log('Current User:', currentUser);
+            console.log('Session:', session);
+            if (!session.tokens?.accessToken) {
                 return res.status(500).json({
                     message: 'No access token available after authentication.',
                     code: 'TOKEN_UNAVAILABLE',
@@ -87,13 +85,13 @@ app.post('/users/login', async (req, res) => {
                 });
             }
             return res.status(200).json({
-                token: currentUser.tokens.accessToken.toString(),
+                token: session.tokens.accessToken.toString(),
                 user: {
                     username: identifier
                 },
                 session: {
                     isValid: true,
-                    expiresAt: new Date(currentUser.tokens.accessToken.payload.exp * 1000)
+                    expiresAt: new Date(session.tokens.accessToken.payload.exp * 1000)
                 }
             });
         } catch (getUserError) {
