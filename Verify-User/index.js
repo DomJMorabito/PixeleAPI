@@ -49,6 +49,13 @@ app.post('/users/verify', async (req, res) => {
                 }
             });
         }
+        return res.status(500).json({
+            message: 'Unable to verify user status.',
+            code: 'SERVER_ERROR',
+            details: {
+                error: error.message
+            }
+        });
     }
 
     const params = {
