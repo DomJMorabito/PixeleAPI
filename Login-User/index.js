@@ -50,7 +50,7 @@ app.post('/users/login', async (req, res) => {
             password
         });
 
-        if (!isSignedIn || nextStep ) {
+        if (!isSignedIn || (!nextStep || nextStep.signInStep !== 'DONE')) {
             return res.status(400).json({
                 message: 'Further authorization required.',
                 code: 'AUTHENTICATION_INCOMPLETE',
@@ -60,18 +60,28 @@ app.post('/users/login', async (req, res) => {
             });
         }
 
-        const { tokens } = await getCurrentUser();
-
-        return res.status(200).json({
-            token: tokens.accessToken.toString(),
-            user: {
-                username: identifier,
-            },
-            session: {
-                isValid: true,
-                expiresAt: new Date(tokens.accessToken.payload.exp * 1000)
-            }
-        });
+        try {
+            const { tokens } = await getCurrentUser();
+            return res.status(200).json({
+                token: tokens.accessToken.toString(),
+                user: {
+                    username: identifier,
+                },
+                session: {
+                    isValid: true,
+                    expiresAt: new Date(tokens.accessToken.payload.exp * 1000)
+                }
+            });
+        } catch (getUserError) {
+            console.error('Error getting current user:', getUserError);
+            return res.status(500).json({
+                message: 'Failed to complete authentication',
+                code: 'AUTH_COMPLETION_FAILED',
+                details: {
+                    error: getUserError.message
+                }
+            });
+        }
     } catch (error) {
         switch (error.name) {
             case 'NotAuthorizedException':
