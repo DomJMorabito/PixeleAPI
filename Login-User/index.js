@@ -50,7 +50,7 @@ app.post('/users/login', async (req, res) => {
             password
         });
 
-        if (!isSignedIn || (!nextStep || nextStep.signInStep !== 'DONE')) {
+        if (!isSignedIn && (!nextStep || nextStep.signInStep !== 'DONE')) {
             return res.status(400).json({
                 message: 'Further authorization required.',
                 code: 'AUTHENTICATION_INCOMPLETE',
