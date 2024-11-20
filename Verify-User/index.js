@@ -51,6 +51,12 @@ app.post('/users/verify', async (req, res) => {
         console.error('Verification error:', error);
 
         switch (error.code) {
+            case 'UserNotFoundException':
+                return res.status(404).json({
+                    message: 'User not found.',
+                    code: 'USER_NOT_FOUND',
+                    details: { username }
+                });
             case 'CodeMismatchException':
                 return res.status(400).json({
                     message: 'Verification code is incorrect.',
@@ -63,12 +69,7 @@ app.post('/users/verify', async (req, res) => {
                     code: 'EXPIRED_CODE',
                     details: { username }
                 });
-            case 'UserNotFoundException':
-                return res.status(404).json({
-                    message: 'User not found.',
-                    code: 'USER_NOT_FOUND',
-                    details: { username }
-                });
+
             case 'NotAuthorizedException':
                 return res.status(409).json({
                     message: 'This account is already verified.',
