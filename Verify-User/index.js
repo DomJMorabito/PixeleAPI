@@ -34,6 +34,23 @@ app.post('/users/verify', async (req, res) => {
         });
     }
 
+    try {
+        await cognito.adminGetUser({
+            UserPoolId: process.env.AWS_USER_POOL_ID,
+            Username: username
+        }).promise();
+    } catch (error) {
+        if (error.code === 'UserNotFoundException') {
+            return res.status(404).json({
+                message: 'No account associated with this username.',
+                code: 'USER_NOT_FOUND',
+                details: {
+                    username
+                }
+            });
+        }
+    }
+
     const params = {
         ClientId: process.env.AWS_USER_POOL_CLIENT_ID,
         Username: username,
@@ -51,12 +68,6 @@ app.post('/users/verify', async (req, res) => {
         console.error('Verification error:', error);
 
         switch (error.code) {
-            case 'UserNotFoundException':
-                return res.status(404).json({
-                    message: 'User not found.',
-                    code: 'USER_NOT_FOUND',
-                    details: { username }
-                });
             case 'CodeMismatchException':
                 return res.status(400).json({
                     message: 'Verification code is incorrect.',
