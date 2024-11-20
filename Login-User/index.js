@@ -74,6 +74,11 @@ app.post('/users/login', async (req, res) => {
         });
     } catch (error) {
         switch (error.name) {
+            case 'NotAuthorizedException':
+                return res.status(401).json({
+                    message: 'Invalid Username/Email or Password.',
+                    code: 'INVALID_CREDENTIALS',
+                })
             case 'UserNotFoundException':
                 return res.status(404).json({
                     message: 'No account associated with this Email/Username.',
@@ -81,11 +86,6 @@ app.post('/users/login', async (req, res) => {
                     details: {
                         identifier
                     }
-                })
-            case 'NotAuthorizedException':
-                return res.status(401).json({
-                    message: 'Password is incorrect.',
-                    code: 'INVALID_PASSWORD',
                 })
             case 'TooManyRequestsException':
                 return res.status(429).json({

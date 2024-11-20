@@ -34,30 +34,6 @@ app.post('/users/verify', async (req, res) => {
         });
     }
 
-    try {
-        await cognito.adminGetUser({
-            UserPoolId: process.env.AWS_USER_POOL_ID,
-            Username: username
-        }).promise();
-    } catch (error) {
-        if (error.code === 'UserNotFoundException') {
-            return res.status(404).json({
-                message: 'No account associated with this username.',
-                code: 'USER_NOT_FOUND',
-                details: {
-                    username
-                }
-            });
-        }
-        return res.status(500).json({
-            message: 'Unable to verify user status.',
-            code: 'SERVER_ERROR',
-            details: {
-                error: error.message
-            }
-        });
-    }
-
     const params = {
         ClientId: process.env.AWS_USER_POOL_CLIENT_ID,
         Username: username,
@@ -81,17 +57,22 @@ app.post('/users/verify', async (req, res) => {
                     code: 'INVALID_CODE',
                     details: { username }
                 });
-            case 'ExpiredCodeException':
-                return res.status(410).json({
-                    message: 'Verification code has expired. Please request a new one.',
-                    code: 'EXPIRED_CODE',
+            case 'UserNotFoundException':
+                return res.status(404).json({
+                    message: 'User not found.',
+                    code: 'USER_NOT_FOUND',
                     details: { username }
                 });
-
             case 'NotAuthorizedException':
                 return res.status(409).json({
                     message: 'This account is already verified.',
                     code: 'ALREADY_VERIFIED',
+                    details: { username }
+                });
+            case 'ExpiredCodeException':
+                return res.status(410).json({
+                    message: 'Verification code has expired. Please request a new one.',
+                    code: 'EXPIRED_CODE',
                     details: { username }
                 });
             case 'LimitExceededException':
