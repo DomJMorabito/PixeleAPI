@@ -3,6 +3,9 @@ import serverless from 'serverless-http';
 import cookieParser from 'cookie-parser';
 import { signIn, signOut, getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
+import AWS from 'aws-sdk';
+
+const cognito = new AWS.CognitoIdentityServiceProvider();
 
 Amplify.configure({
     Auth: {
@@ -157,13 +160,29 @@ app.post('/users/login', async (req, res) => {
                     code: 'RATE_LIMIT_EXCEEDED'
                 })
             case 'UserNotConfirmedException':
-                return res.status(403).json({
-                    message: 'Please verify your email before logging in.',
-                    code: 'USER_NOT_CONFIRMED',
-                    details: {
-                        identifier
+                try {
+                    if (identifier.includes('@')) {
+                        const params = {
+                            UserPoolId: process.env.AWS_USER_POOL_ID,
+                            Filter: `email = "${identifier}"`,
+                            Limit: 1
+                        };
+
+                        const userData = await cognito.listUsers(params).promise();
+                        const username = userData.Users[0]?.Username;
+                        return res.status(403).json({
+                            message: 'Please verify your email before logging in.',
+                            code: 'USER_NOT_CONFIRMED',
+                            details: {
+                                identifier,
+                                username: username
+                            }
+                        });
                     }
-                })
+                } catch (error) {
+                    console.error('Error looking up username:', error);
+                }
+                break
             default:
                 console.error('Login error:', error);
                 return res.status(500).json({

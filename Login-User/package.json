@@ -12,6 +12,7 @@
   "description": "",
   "dependencies": {
     "aws-amplify": "^6.8.2",
+    "aws-sdk": "^2.1692.0",
     "cookie-parser": "^1.4.7",
     "express": "^4.21.1",
     "serverless-http": "^3.2.0"
