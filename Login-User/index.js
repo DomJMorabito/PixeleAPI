@@ -182,7 +182,13 @@ app.post('/users/login', async (req, res) => {
                 } catch (error) {
                     console.error('Error looking up username:', error);
                 }
-                break
+                return res.status(403).json({
+                    message: 'Please verify your email before logging in.',
+                    code: 'USER_NOT_CONFIRMED',
+                    details: {
+                        identifier
+                    }
+                });
             default:
                 console.error('Login error:', error);
                 return res.status(500).json({
