@@ -58,8 +58,6 @@ app.post('/users/login', async (req, res) => {
             password
         });
 
-        console.log('Sign in result:', { isSignedIn, nextStep });
-
         if (!isSignedIn && (!nextStep || nextStep.signInStep !== 'DONE')) {
             return res.status(400).json({
                 message: 'Further authorization required.',
@@ -70,13 +68,12 @@ app.post('/users/login', async (req, res) => {
             });
         }
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
         try {
-            const currentUser = await getCurrentUser();
-            const session = await fetchAuthSession();
-            console.log('Current User:', currentUser);
-            console.log('Session:', session);
+            const [currentUser, session] = await Promise.all([
+                getCurrentUser(),
+                fetchAuthSession()
+            ]);
+
             if (!session.tokens?.accessToken) {
                 return res.status(500).json({
                     message: 'No access token available after authentication.',
@@ -86,20 +83,29 @@ app.post('/users/login', async (req, res) => {
                     }
                 });
             }
-            res.cookie('pixele_session', session.tokens.accessToken.toString(), {
+
+            const tokenExpiration = session.tokens.accessToken.payload.exp * 1000;
+            const cookieOptions = {
                 httpOnly: true,
                 secure: true,
                 sameSite: 'strict',
-                maxAge: session.tokens.accessToken.payload.exp * 1000 - Date.now()
-            }).cookie('pixele_user', JSON.stringify({
+                maxAge: tokenExpiration - Date.now()
+            };
+
+            res.cookie('pixele_session', session.tokens.accessToken.toString(), {
+                ...cookieOptions,
+                httpOnly: true
+            });
+
+            res.cookie('pixele_user', JSON.stringify({
                 username: currentUser.username,
                 email: currentUser.signInDetails.loginId
             }), {
-                httpOnly: false,
-                secure: true,
-                sameSite: 'strict',
-                maxAge: session.tokens.accessToken.payload.exp * 1000 - Date.now()
-            }).status(200).json({
+                ...cookieOptions,
+                httpOnly: false
+            });
+
+            return res.status(200).json({
                 token: session.tokens.accessToken.toString(),
                 user: {
                     username: currentUser.username,
