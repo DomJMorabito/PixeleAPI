@@ -1,5 +1,6 @@
 import express from 'express';
 import serverless from 'serverless-http';
+import cookieParser from 'cookie-parser';
 import { signIn, signOut, getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
 
@@ -14,6 +15,7 @@ Amplify.configure({
 
 const app = express();
 app.use(express.json({ limit: '10kb' }));
+app.use(cookieParser());
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -84,18 +86,32 @@ app.post('/users/login', async (req, res) => {
                     }
                 });
             }
-            return res.status(200).json({
+            res.cookie('pixele_session', session.tokens.accessToken.toString(), {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'strict',
+                maxAge: session.tokens.accessToken.payload.exp * 1000 - Date.now()
+            }).cookie('pixele_user', JSON.stringify({
+                username: currentUser.username,
+                email: currentUser.signInDetails.loginId
+            }), {
+                httpOnly: false,
+                secure: true,
+                sameSite: 'strict',
+                maxAge: session.tokens.accessToken.payload.exp * 1000 - Date.now()
+            }).status(200).json({
                 token: session.tokens.accessToken.toString(),
                 user: {
-                    username: identifier
+                    username: currentUser.username,
+                    email: currentUser.signInDetails.loginId
                 },
                 session: {
                     isValid: true,
                     expiresAt: new Date(session.tokens.accessToken.payload.exp * 1000)
                 }
             });
-        } catch (getUserError) {
-            console.error('Error getting current user:', getUserError);
+        } catch (error) {
+            console.error('Error getting current user:', error);
             try {
                 await signOut();
             } catch (error) {
@@ -105,7 +121,7 @@ app.post('/users/login', async (req, res) => {
                 message: 'Failed to complete authentication',
                 code: 'AUTH_COMPLETION_FAILED',
                 details: {
-                    error: getUserError.message
+                    error: error.message
                 }
             });
         }
