@@ -56,51 +56,37 @@ app.post('/users/login', async (req, res) => {
             console.log('SignOut error (non-critical):', error);
         }
 
+        let username = identifier;
+        if (identifier.includes('@')) {
+            try {
+                const params = {
+                    UserPoolId: process.env.AWS_USER_POOL_ID,
+                    Filter: `email = "${identifier}"`,
+                    Limit: 1
+                };
+
+                const userData = await cognito.listUsers(params).promise();
+                username = userData.Users[0]?.Username
+            } catch (error) {
+                console.error('Error looking up username:', error);
+            }
+        }
+
         const { isSignedIn, nextStep } = await signIn({
-            username: identifier,
+            username: username,
             password
         });
 
         if (!isSignedIn && (!nextStep || nextStep.signInStep !== 'DONE')) {
-            try {
-                let username;
-
-                if (identifier.includes('@')) {
-                    try {
-                        const params = {
-                            UserPoolId: process.env.AWS_USER_POOL_ID,
-                            Filter: `email = "${identifier}"`,
-                            Limit: 1
-                        };
-
-                        const userData = await cognito.listUsers(params).promise();
-                        username = userData.Users[0]?.Username;
-                    } catch (error) {
-                        console.error('Error looking up username:', error);
-                    }
-                } else {
-                    username = identifier;
+            return res.status(403).json({
+                message: 'Further authentication required',
+                code: 'AUTH_INCOMPLETE',
+                details: {
+                    nextStep,
+                    identifier,
+                    username
                 }
-
-                return res.status(403).json({
-                    message: 'Further authentication needed',
-                    code: 'AUTH_INCOMPLETE',
-                    details: {
-                        nextStep,
-                        identifier,
-                        username
-                    }
-                });
-            } catch (error) {
-                console.error('Error during auth step handling:', error);
-                return res.status(500).json({
-                    message: 'Error processing authentication step',
-                    code: 'AUTH_STEP_ERROR',
-                    details: {
-                        error: error.message
-                    }
-                });
-            }
+            });
         }
 
         try {
