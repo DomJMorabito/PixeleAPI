@@ -57,6 +57,7 @@ app.post('/users/login', async (req, res) => {
         }
 
         let username = identifier;
+        let email = identifier;
         if (identifier.includes('@')) {
             try {
                 const params = {
@@ -66,9 +67,21 @@ app.post('/users/login', async (req, res) => {
                 };
 
                 const userData = await cognito.listUsers(params).promise();
-                username = userData.Users[0]?.Username
+                username = userData.Users[0]?.Username;
             } catch (error) {
                 console.error('Error looking up username:', error);
+            }
+        } else {
+            try {
+                const params = {
+                    UserPoolId: process.env.AWS_USER_POOL_ID,
+                    Username: identifier
+                };
+
+                const userData = await cognito.adminGetUser(params).promise();
+                email = userData.UserAttributes.find(attribute => attribute.Name === 'email')?.Value || identifier;
+            } catch (error) {
+                console.error('Error looking up email:', error);
             }
         }
 
@@ -84,7 +97,8 @@ app.post('/users/login', async (req, res) => {
                 details: {
                     nextStep,
                     identifier,
-                    username
+                    username,
+                    email
                 }
             });
         }
