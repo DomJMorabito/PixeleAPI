@@ -62,13 +62,66 @@ app.post('/users/login', async (req, res) => {
         });
 
         if (!isSignedIn && (!nextStep || nextStep.signInStep !== 'DONE')) {
-            return res.status(400).json({
-                message: 'Further authorization required.',
-                code: 'AUTHENTICATION_INCOMPLETE',
-                details: {
-                    nextStep
+            try {
+                let username;
+
+                if (identifier.includes('@')) {
+                    try {
+                        const params = {
+                            UserPoolId: process.env.AWS_USER_POOL_ID,
+                            Filter: `email = "${identifier}"`,
+                            Limit: 1
+                        };
+
+                        const userData = await cognito.listUsers(params).promise();
+                        username = userData.Users[0]?.Username;
+                    } catch (error) {
+                        console.error('Error looking up username:', error);
+                    }
+                } else {
+                    username = identifier;
                 }
-            });
+
+                const response =  {
+                    message: 'Further authorization needed.',
+                    code: 'AUTHENTICATION_INCOMPLETE',
+                    details: {
+                        nextStep,
+                        identifier,
+                        username,
+                    }
+                };
+
+                switch (nextStep?.signInStep) {
+                    case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED':
+                        response.code = 'NEW_PASSWORD_REQUIRED';
+                        return res.status(403).json(response)
+                    case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
+                        response.code = 'CONFIRM_SIGN_IN_WITH_TOTP_CODE';
+                        return res.status(403).json(response)
+                    case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
+                        response.code = 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE';
+                        return res.status(403).json(response)
+                    case 'RESET_PASSWORD':
+                        response.code = 'RESET_PASSWORD';
+                        return res.status(403).json(response)
+                    case 'CONFIRM_SIGN_UP':
+                        response.code = 'CONFIRM_SIGN_UP';
+                        return res.status(403).json(response)
+                    default:
+                        response.code = 'UNKNOWN_AUTH_STEP';
+                        return res.status(403).json(response)
+                }
+            } catch (error) {
+                console.error('Error during auth step handling:', error);
+                return res.status(500).json({
+                    message: 'Error processing authentication step',
+                    code: 'AUTH_STEP_ERROR',
+                    details: {
+                        error: error.message
+                    }
+                });
+            }
         }
 
         try {
@@ -159,36 +212,11 @@ app.post('/users/login', async (req, res) => {
                     message: 'Too many attempts. Please try again later.',
                     code: 'RATE_LIMIT_EXCEEDED'
                 })
-            case 'UserNotConfirmedException':
-                try {
-                    if (identifier.includes('@')) {
-                        const params = {
-                            UserPoolId: process.env.AWS_USER_POOL_ID,
-                            Filter: `email = "${identifier}"`,
-                            Limit: 1
-                        };
-
-                        const userData = await cognito.listUsers(params).promise();
-                        const username = userData.Users[0]?.Username;
-                        return res.status(403).json({
-                            message: 'Please verify your email before logging in.',
-                            code: 'USER_NOT_CONFIRMED',
-                            details: {
-                                identifier,
-                                username: username
-                            }
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error looking up username:', error);
-                }
-                return res.status(403).json({
-                    message: 'Please verify your email before logging in.',
-                    code: 'USER_NOT_CONFIRMED',
-                    details: {
-                        identifier
-                    }
-                });
+            case 'LimitExceededException':
+                return res.status(429).json({
+                    message: 'Request limit exceeded. Please try again later.',
+                    code: 'LIMIT_EXCEEDED'
+                })
             default:
                 console.error('Login error:', error);
                 return res.status(500).json({
