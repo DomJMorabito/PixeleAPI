@@ -1,7 +1,7 @@
 import express from 'express';
 import serverless from 'serverless-http';
 import cookieParser from 'cookie-parser';
-import { signIn, signOut, getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
+import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
 import AWS from 'aws-sdk';
 
@@ -114,10 +114,7 @@ app.post('/users/login', async (req, res) => {
         }
 
         try {
-            const [currentUser, session] = await Promise.all([
-                getCurrentUser(),
-                fetchAuthSession()
-            ]);
+            const session = await fetchAuthSession();
 
             if (!session.tokens?.accessToken) {
                 return res.status(500).json({
@@ -143,8 +140,8 @@ app.post('/users/login', async (req, res) => {
             });
 
             res.cookie('pixele_user', JSON.stringify({
-                username: currentUser.username,
-                email: currentUser.signInDetails.loginId
+                username: username,
+                email: email
             }), {
                 ...cookieOptions,
                 httpOnly: false
@@ -153,8 +150,8 @@ app.post('/users/login', async (req, res) => {
             return res.status(200).json({
                 token: session.tokens.accessToken.toString(),
                 user: {
-                    username: currentUser.username,
-                    email: currentUser.signInDetails.loginId
+                    username: username,
+                    email: email
                 },
                 session: {
                     isValid: true,
