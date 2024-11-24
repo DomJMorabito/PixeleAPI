@@ -90,6 +90,17 @@ app.post('/users/login', async (req, res) => {
             password
         });
 
+        if (nextStep?.signInStep === 'CONFIRM_SIGN_UP') {
+            try {
+                await cognito.resendConfirmationCode({
+                    ClientId: process.env.AWS_USER_POOL_CLIENT_ID,
+                    Username: username
+                }).promise();
+            } catch (error) {
+                console.error('Error resending confirmation code:', error);
+            }
+        }
+
         if (!isSignedIn && (!nextStep || nextStep.signInStep !== 'DONE')) {
             return res.status(403).json({
                 message: 'Further authentication required',
