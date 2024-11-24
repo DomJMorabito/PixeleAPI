@@ -82,36 +82,15 @@ app.post('/users/login', async (req, res) => {
                     username = identifier;
                 }
 
-                const response =  {
-                    message: 'Further authorization needed.',
-                    code: 'AUTHENTICATION_INCOMPLETE',
+                return res.status(403).json({
+                    message: 'Further authentication needed',
+                    code: 'AUTH_INCOMPLETE',
                     details: {
                         nextStep,
                         identifier,
-                        username,
+                        username
                     }
-                };
-
-                switch (nextStep?.signInStep) {
-                    case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED':
-                        response.code = 'NEW_PASSWORD_REQUIRED';
-                        return res.status(403).json(response)
-                    case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
-                        response.code = 'CONFIRM_SIGN_IN_WITH_TOTP_CODE';
-                        return res.status(403).json(response)
-                    case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
-                        response.code = 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE';
-                        return res.status(403).json(response)
-                    case 'RESET_PASSWORD':
-                        response.code = 'RESET_PASSWORD';
-                        return res.status(403).json(response)
-                    case 'CONFIRM_SIGN_UP':
-                        response.code = 'CONFIRM_SIGN_UP';
-                        return res.status(403).json(response)
-                    default:
-                        response.code = 'UNKNOWN_AUTH_STEP';
-                        return res.status(403).json(response)
-                }
+                });
             } catch (error) {
                 console.error('Error during auth step handling:', error);
                 return res.status(500).json({
