@@ -96,7 +96,6 @@ app.post('/users/login', async (req, res) => {
                 code: 'AUTH_INCOMPLETE',
                 details: {
                     nextStep,
-                    identifier,
                     username,
                     email
                 }
