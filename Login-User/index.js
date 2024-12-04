@@ -1,5 +1,6 @@
 import express from 'express';
 import serverless from 'serverless-http';
+import cookieParser from 'cookie-parser';
 import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
 import AWS from 'aws-sdk';
@@ -48,10 +49,12 @@ let app;
 const appPromise = initialize().then(initializedApp => {
     app = initializedApp;
     app.use(express.json({ limit: '10kb' }));
+    app.use(cookieParser());
     app.use((req, res, next) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('X-Content-Type-Options', 'nosniff');
         if (req.method === 'OPTIONS') {
             return res.status(200).end();
@@ -162,7 +165,8 @@ const appPromise = initialize().then(initializedApp => {
                     httpOnly: true,
                     secure: true,
                     sameSite: 'strict',
-                    maxAge: tokenExpiration - Date.now()
+                    maxAge: tokenExpiration - Date.now(),
+                    domain: '.pixele.gg'
                 };
 
                 res.cookie('pixele_session', session.tokens.accessToken.toString(), {
