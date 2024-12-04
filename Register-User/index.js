@@ -12,7 +12,12 @@ async function getSecrets() {
         const data = await secretsManager.getSecretValue({
             SecretId: process.env.SECRET_ID
         }).promise();
-        return JSON.parse(data.SecretString);
+        try {
+            return JSON.parse(data.SecretString);
+        } catch (parseError) {
+            console.error('Error parsing secrets:', parseError);
+            throw new Error('Invalid secret format');
+        }
     } catch (error) {
         console.error('Error retrieving secrets:', error);
         throw error;
@@ -20,18 +25,24 @@ async function getSecrets() {
 }
 
 async function initialize() {
-    const secrets = await getSecrets();
-
-    Amplify.configure({
-        Auth: {
-            Cognito: {
-                userPoolClientId: secrets.USER_POOL_CLIENT_ID,
-                userPoolId: secrets.USER_POOL_ID,
-            }
+    try {
+        const secrets = await getSecrets();
+        if (!secrets.USER_POOL_CLIENT_ID || !secrets.USER_POOL_ID) {
+            throw new Error('Required Cognito credentials not found in secrets');
         }
-    });
-
-    return express();
+        Amplify.configure({
+            Auth: {
+                Cognito: {
+                    userPoolClientId: secrets.USER_POOL_CLIENT_ID,
+                    userPoolId: secrets.USER_POOL_ID,
+                }
+            }
+        });
+        return express();
+    } catch (error) {
+        console.error('Initialization failed:', error);
+        throw error;
+    }
 }
 
 let app;
@@ -229,7 +240,7 @@ const checkForDuplicateUsername = async (username, userPoolId, cognito) => {
     try {
         const params = {
             UserPoolId: userPoolId,
-            Filter: `username = '${username}'`,
+            Filter: `username = "${username.replace(/"/g, '\\"')}"`,
             Limit: 1,
         };
         const result = await cognito.listUsers(params).promise();
