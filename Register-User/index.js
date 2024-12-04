@@ -5,207 +5,230 @@ import AWS from 'aws-sdk';
 import { signUp } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
 
-Amplify.configure({
-    Auth: {
-        Cognito: {
-            userPoolClientId: process.env.AWS_USER_POOL_CLIENT_ID,
-            userPoolId: process.env.AWS_USER_POOL_ID,
-        }
-    }
-});
+const secretsManager = new AWS.SecretsManager();
 
-const cognito = new AWS.CognitoIdentityServiceProvider();
-
-const app = express();
-app.use(express.json({ limit: '10kb' }));
-app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-    console.log(`${req.method} ${req.path} - IP: ${req.ip}`);
-    next();
-});
-
-app.post('/users/register', async (req, res) => {
-    let { username, email, password } = req.body;
-    const filter = new Filter();
-
-    if (!username || !email || !password) {
-        return res.status(400).json({
-            message: 'All fields are required.',
-            code: 'MISSING_FIELDS',
-            details: {
-                missingFields: [
-                    !username && 'usernameInput',
-                    !email && 'emailInput',
-                    !password && 'passwordInput'
-                ].filter(Boolean)
-            }
-        });
-    }
-
-    username = username.toLowerCase();
-
-    if (!validateEmail(email)) {
-        return res.status(400).json({
-            message: 'Enter a valid email.',
-            code: 'INVALID_EMAIL',
-            details: {
-                providedEmail: email
-            }
-        });
-    }
-
-    if (!validateUsernameLength(username)) {
-        return res.status(400).json({
-            message: 'Username must be 5-18 characters.',
-            code: 'INVALID_USERNAME',
-            details: {
-                requirements: {
-                    minLength: 5,
-                    maxLength: 18
-                }
-            }
-        });
-    }
-
-    if (!validateUsernameSpecialCharacters(username)) {
-        return res.status(400).json({
-            message: 'Username cannot contain any special characters.',
-            code: 'INVALID_USERNAME',
-            details: {
-                requirements: {
-                    allowedCharacters: 'alphanumeric'
-                }
-            }
-        });
-    }
-
-    if (!validatePassword(password)) {
-        return res.status(400).json({
-            message: 'Password requirements not met.',
-            code: 'INVALID_PASSWORD',
-            details: {
-                requirements: {
-                    minLength: 8,
-                    requiresNumber: true,
-                    requiresSpecialChar: true
-                }
-            }
-        });
-    }
-
-    if (filter.isProfane(username)) {
-        return res.status(400).json({
-            message: 'Seriously?',
-            code: 'INAPPROPRIATE_CONTENT',
-            details: {
-                username
-            }
-        });
-    }
-
+async function getSecrets() {
     try {
-        const emailExists = await checkForDuplicateEmail(email);
-        const usernameExists = await checkForDuplicateUsername(username);
+        const data = await secretsManager.getSecretValue({
+            SecretId: process.env.SECRET_ID
+        }).promise();
+        return JSON.parse(data.SecretString);
+    } catch (error) {
+        console.error('Error retrieving secrets:', error);
+        throw error;
+    }
+}
 
-        if (emailExists && usernameExists) {
-            return res.status(409).json({
-                message: 'Both Email and Username are already in use.',
-                code: 'DUPLICATE_CREDENTIALS',
+async function initialize() {
+    const secrets = await getSecrets();
+
+    Amplify.configure({
+        Auth: {
+            Cognito: {
+                userPoolClientId: secrets.USER_POOL_CLIENT_ID,
+                userPoolId: secrets.USER_POOL_ID,
+            }
+        }
+    });
+
+    return express();
+}
+
+let app;
+const appPromise = initialize().then(initializedApp => {
+    app = initializedApp;
+    app.use(express.json({ limit: '10kb' }));
+    app.use((req, res, next) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        if (req.method === 'OPTIONS') {
+            return res.status(200).end();
+        }
+        console.log(`${req.method} ${req.path} - IP: ${req.ip}`);
+        next();
+    });
+
+    app.post('/users/register', async (req, res) => {
+        const secrets = await getSecrets();
+        const cognito = new AWS.CognitoIdentityServiceProvider();
+        let { username, email, password } = req.body;
+        const filter = new Filter();
+
+        if (!username || !email || !password) {
+            return res.status(400).json({
+                message: 'All fields are required.',
+                code: 'MISSING_FIELDS',
+                details: {
+                    missingFields: [
+                        !username && 'usernameInput',
+                        !email && 'emailInput',
+                        !password && 'passwordInput'
+                    ].filter(Boolean)
+                }
+            });
+        }
+
+        username = username.toLowerCase();
+
+        if (!validateEmail(email)) {
+            return res.status(400).json({
+                message: 'Enter a valid email.',
+                code: 'INVALID_EMAIL',
+                details: {
+                    providedEmail: email
+                }
+            });
+        }
+
+        if (!validateUsernameLength(username)) {
+            return res.status(400).json({
+                message: 'Username must be 5-18 characters.',
+                code: 'INVALID_USERNAME',
+                details: {
+                    requirements: {
+                        minLength: 5,
+                        maxLength: 18
+                    }
+                }
+            });
+        }
+
+        if (!validateUsernameSpecialCharacters(username)) {
+            return res.status(400).json({
+                message: 'Username cannot contain any special characters.',
+                code: 'INVALID_USERNAME',
+                details: {
+                    requirements: {
+                        allowedCharacters: 'alphanumeric'
+                    }
+                }
+            });
+        }
+
+        if (!validatePassword(password)) {
+            return res.status(400).json({
+                message: 'Password requirements not met.',
+                code: 'INVALID_PASSWORD',
+                details: {
+                    requirements: {
+                        minLength: 8,
+                        requiresNumber: true,
+                        requiresSpecialChar: true
+                    }
+                }
+            });
+        }
+
+        if (filter.isProfane(username)) {
+            return res.status(400).json({
+                message: 'Seriously?',
+                code: 'INAPPROPRIATE_CONTENT',
+                details: {
+                    username
+                }
+            });
+        }
+
+        try {
+            const emailExists = await checkForDuplicateEmail(email, secrets.USER_POOL_ID, cognito);
+            const usernameExists = await checkForDuplicateUsername(username, secrets.USER_POOL_ID, cognito);
+
+            if (emailExists && usernameExists) {
+                return res.status(409).json({
+                    message: 'Both Email and Username are already in use.',
+                    code: 'DUPLICATE_CREDENTIALS',
+                    details: {
+                        email,
+                        username
+                    }
+                });
+            }
+
+            if (emailExists) {
+                return res.status(409).json({
+                    message: 'Email already in use.',
+                    code: 'EMAIL_EXISTS',
+                    details: {
+                        email
+                    }
+                });
+            }
+
+            if (usernameExists) {
+                return res.status(409).json({
+                    message: 'Username already in use.',
+                    code: 'USERNAME_EXISTS',
+                    details: {
+                        username
+                    }
+                });
+            }
+
+            await signUp({
+                username: username,
+                password: password,
+                options: {
+                    userAttributes: {
+                        email: email,
+                    }
+                }
+            });
+            return res.status(201).json({
+                message: 'Registration Successful! Please check your email for verification.',
+                code: 'REGISTRATION_SUCCESS',
                 details: {
                     email,
                     username
                 }
             });
-        }
-
-        if (emailExists) {
-            return res.status(409).json({
-                message: 'Email already in use.',
-                code: 'EMAIL_EXISTS',
+        } catch (error) {
+            console.error('Cognito sign up error:', error);
+            if (error.code === 'LimitExceededException') {
+                return res.status(429).json({
+                    message: 'Too many attempts. Please try again later.',
+                    code: 'RATE_LIMIT_EXCEEDED',
+                    details: {
+                        retryAfter: '30s'
+                    }
+                });
+            }
+            return res.status(500).json({
+                message: 'Internal Server Error',
+                code: 'SERVER_ERROR',
                 details: {
-                    email
+                    error: error.message
                 }
             });
         }
-
-        if (usernameExists) {
-            return res.status(409).json({
-                message: 'Username already in use.',
-                code: 'USERNAME_EXISTS',
-                details: {
-                    username
-                }
-            });
-        }
-
-        await signUp({
-            username: username,
-            password: password,
-            options: {
-                userAttributes: {
-                    email: email,
-                }
-            }
-        });
-        return res.status(201).json({
-            message: 'Registration Successful! Please check your email for verification.',
-            code: 'REGISTRATION_SUCCESS',
-            details: {
-                email,
-                username
-            }
-        });
-    } catch (error) {
-        console.error('Cognito sign up error:', error);
-        if (error.code === 'LimitExceededException') {
-            return res.status(429).json({
-                message: 'Too many attempts. Please try again later.',
-                code: 'RATE_LIMIT_EXCEEDED',
-                details: {
-                    retryAfter: '30s'
-                }
-            });
-        }
-        return res.status(500).json({
-            message: 'Internal Server Error',
-            code: 'SERVER_ERROR',
-            details: {
-                error: error.message
-            }
-        });
-    }
+    });
+    return app;
 });
-
-export const handler = serverless(app);
 
 // Check for Duplicate Email:
 
-const checkForDuplicateEmail = async (email) => {
+const checkForDuplicateEmail = async (email, userPoolId, cognito) => {
     try {
         const params = {
-            UserPoolId: process.env.AWS_USER_POOL_ID,
-            Filter: `email = '${email}'`,
+            UserPoolId: userPoolId,
+            Filter: `email = "${email.replace(/"/g, '\\"')}"`,
             Limit: 1,
         };
         const result = await cognito.listUsers(params).promise();
         return result.Users && result.Users.length > 0;
     } catch (error) {
         console.error('Error checking duplicate email:', error);
+        return false;
     }
 }
 
 // Check for Duplicate Username:
 
-const checkForDuplicateUsername = async (username) => {
+const checkForDuplicateUsername = async (username, userPoolId, cognito) => {
     try {
         const params = {
-            UserPoolId: process.env.AWS_USER_POOL_ID,
+            UserPoolId: userPoolId,
             Filter: `username = '${username}'`,
             Limit: 1,
         };
@@ -213,8 +236,14 @@ const checkForDuplicateUsername = async (username) => {
         return result.Users && result.Users.length > 0;
     } catch (error) {
         console.error('Error checking duplicate username:', error);
+        return false;
     }
 }
+
+export const handler = async (event, context) => {
+    await appPromise;
+    return serverless(app)(event, context);
+};
 
 // Helper function to validate email format
 const validateEmail = (email) => {
