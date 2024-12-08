@@ -164,8 +164,9 @@ const appPromise = initialize().then(initializedApp => {
                 const cookieOptions = {
                     httpOnly: true,
                     secure: true,
-                    sameSite: 'strict',
+                    sameSite: 'lax',
                     maxAge: tokenExpiration - Date.now(),
+                    path: '/',
                     domain: 'pixele.gg'
                 };
 
