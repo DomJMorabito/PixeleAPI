@@ -51,7 +51,7 @@ const appPromise = initialize().then(initializedApp => {
     app.use(express.json({ limit: '10kb' }));
     app.use(cookieParser());
     app.use((req, res, next) => {
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Origin', 'https://pixele.gg');
         res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
         res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -166,7 +166,7 @@ const appPromise = initialize().then(initializedApp => {
                     secure: true,
                     sameSite: 'strict',
                     maxAge: tokenExpiration - Date.now(),
-                    domain: '.pixele.gg'
+                    domain: 'pixele.gg'
                 };
 
                 res.cookie('pixele_session', session.tokens.accessToken.toString(), {
