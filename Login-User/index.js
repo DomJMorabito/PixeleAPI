@@ -51,13 +51,10 @@ const appPromise = initialize().then(initializedApp => {
     app.use(express.json({ limit: '10kb' }));
     app.use(cookieParser());
     app.use((req, res, next) => {
-        const origin = req.headers.origin;
-        if (origin === 'https://pixele.gg' || origin === 'http://localhost:3000') {
-            res.setHeader('Access-Control-Allow-Origin', origin);
-            res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-            res.setHeader('Access-Control-Allow-Credentials', 'true');
-        }
+        res.setHeader('Access-Control-Allow-Origin', 'https://api.pixele.gg');
+        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('X-Content-Type-Options', 'nosniff');
         if (req.method === 'OPTIONS') {
             return res.status(200).end();
