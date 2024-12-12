@@ -137,7 +137,7 @@ const appPromise = initialize().then(initializedApp => {
 
             if (!isSignedIn && (!nextStep || nextStep.signInStep !== 'DONE')) {
                 return res.status(403).json({
-                    message: 'Further authentication required',
+                    message: 'Further authentication required.',
                     code: 'AUTH_INCOMPLETE',
                     details: {
                         nextStep,
@@ -155,7 +155,7 @@ const appPromise = initialize().then(initializedApp => {
                         message: 'No access token available after authentication.',
                         code: 'TOKEN_UNAVAILABLE',
                         details: {
-                            error: 'Access token missing from authenticated session'
+                            error: 'Access token missing from authenticated session.'
                         }
                     });
                 }
@@ -202,7 +202,7 @@ const appPromise = initialize().then(initializedApp => {
                     console.log('Cleanup signOut error (non-critical):', error);
                 }
                 return res.status(500).json({
-                    message: 'Failed to complete authentication',
+                    message: 'Failed to complete authentication.',
                     code: 'AUTH_COMPLETION_FAILED',
                     details: {
                         error: error.message
