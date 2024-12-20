@@ -223,7 +223,7 @@ const appPromise = initialize().then(initializedApp => {
                     'INSERT INTO users (username) VALUES (?)',
                     [username]
                 );
-                const userId = userResult.userId;
+                const userId = userResult.insertId;
 
                 const [games] = await pool.execute('SELECT id FROM games');
                 await Promise.all(games.map(game =>
