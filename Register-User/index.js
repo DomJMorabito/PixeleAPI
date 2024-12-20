@@ -64,7 +64,7 @@ async function initialize() {
             port: dbSecrets.port,
             waitForConnections: true,
             connectionLimit: 10,
-            queueLimit: 0
+            queueLimit: 5
         });
 
         Amplify.configure({
@@ -179,11 +179,12 @@ const appPromise = initialize().then(initializedApp => {
             });
         }
 
-        const connection = await pool.getConnection();
 
         try {
-            const emailExists = await checkForDuplicateEmail(email, cognitoSecrets.USER_POOL_ID, cognito);
-            const usernameExists = await checkForDuplicateUsername(username, cognitoSecrets.USER_POOL_ID, cognito);
+            const [emailExists, usernameExists] = await Promise.all([
+                checkForDuplicateEmail(email, cognitoSecrets.USER_POOL_ID, cognito),
+                checkForDuplicateUsername(username, cognitoSecrets.USER_POOL_ID, cognito)
+            ]);
 
             if (emailExists && usernameExists) {
                 return res.status(409).json({
@@ -217,22 +218,6 @@ const appPromise = initialize().then(initializedApp => {
             }
 
             try {
-                await connection.beginTransaction();
-
-                const [userResult] = await connection.execute(
-                    'INSERT INTO users (username) VALUES (?)',
-                    [username]
-                );
-                const userId = userResult.insertId;
-
-                const [games] = await pool.execute('SELECT id FROM games');
-                await Promise.all(games.map(game =>
-                    pool.execute(
-                        'INSERT INTO game_stats (user_id, game_id) VALUES (?, ?)',
-                        [userId, game.id]
-                    )
-                ));
-
                 await signUp({
                     username: username,
                     password: password,
@@ -242,6 +227,30 @@ const appPromise = initialize().then(initializedApp => {
                         }
                     }
                 });
+            } catch (cognitoError) {
+                console.error('Cognito signup failed:', cognitoError);
+                throw cognitoError;
+            }
+
+            const connection = await pool.getConnection();
+
+            try {
+                await connection.beginTransaction();
+
+                const [userResult] = await connection.execute(
+                    'INSERT INTO users (username) VALUES (?)',
+                    [username]
+                );
+
+                const userId = userResult.insertId;
+                const [games] = await connection.execute('SELECT id FROM games');
+
+                await Promise.all(games.map(game =>
+                    connection.execute(
+                        'INSERT INTO game_stats (user_id, game_id) VALUES (?, ?)',
+                        [userId, game.id]
+                    )
+                ));
 
                 await connection.commit();
 
@@ -264,6 +273,9 @@ const appPromise = initialize().then(initializedApp => {
                 } catch (cleanupError) {
                     console.error('Cognito cleanup error:', cleanupError);
                 }
+                throw dbError;
+            } finally {
+                connection.release();
             }
         } catch (error) {
             console.error('Cognito sign up error:', error);
@@ -283,8 +295,6 @@ const appPromise = initialize().then(initializedApp => {
                     error: error.message
                 }
             });
-        } finally {
-            connection.release();
         }
     });
     return app;
