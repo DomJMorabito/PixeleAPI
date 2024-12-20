@@ -15,6 +15,7 @@
     "aws-sdk": "^2.1691.0",
     "bad-words": "^4.0.0",
     "express": "^4.21.1",
+    "mysql2": "^3.11.5",
     "serverless-http": "^3.2.0"
   }
 }

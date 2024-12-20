@@ -4,10 +4,28 @@ import { Filter } from 'bad-words';
 import AWS from 'aws-sdk';
 import { signUp } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
+import mysql from 'mysql2/promise';
 
 const secretsManager = new AWS.SecretsManager();
 
-async function getSecrets() {
+async function getDbSecrets() {
+    try {
+        const data = await secretsManager.getSecretValue({
+            SecretId: process.env.DB_SECRET_ID
+        }).promise();
+        try {
+            return JSON.parse(data.SecretString);
+        } catch (parseError) {
+            console.error('Error parsing secrets:', parseError);
+            throw new Error('Invalid secret format');
+        }
+    } catch (error) {
+        console.error('Error retrieving secrets:', error);
+        throw error;
+    }
+}
+
+async function getCognitoSecrets() {
     try {
         const data = await secretsManager.getSecretValue({
             SecretId: process.env.SECRET_ID
@@ -24,17 +42,36 @@ async function getSecrets() {
     }
 }
 
+let pool;
+
 async function initialize() {
     try {
-        const secrets = await getSecrets();
-        if (!secrets.USER_POOL_CLIENT_ID || !secrets.USER_POOL_ID) {
+        const [dbSecrets, cognitoSecrets] = await Promise.all([
+            getDbSecrets(),
+            getCognitoSecrets()
+        ]);
+        if (!cognitoSecrets.USER_POOL_CLIENT_ID || !cognitoSecrets.USER_POOL_ID) {
             throw new Error('Required Cognito credentials not found in secrets');
+        } else if (!dbSecrets.host || !dbSecrets.username || !dbSecrets.password || !dbSecrets.dbname || !dbSecrets.port) {
+            throw new Error('Required RDS credentials not found in secrets');
         }
+
+        pool = mysql.createPool({
+            host: dbSecrets.host,
+            user: dbSecrets.username,
+            password: dbSecrets.password,
+            database: dbSecrets.dbname,
+            port: dbSecrets.port,
+            waitForConnections: true,
+            connectionLimit: 10,
+            queueLimit: 0
+        });
+
         Amplify.configure({
             Auth: {
                 Cognito: {
-                    userPoolClientId: secrets.USER_POOL_CLIENT_ID,
-                    userPoolId: secrets.USER_POOL_ID,
+                    userPoolClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
+                    userPoolId: cognitoSecrets.USER_POOL_ID,
                 }
             }
         });
@@ -62,7 +99,7 @@ const appPromise = initialize().then(initializedApp => {
     });
 
     app.post('/users/register', async (req, res) => {
-        const secrets = await getSecrets();
+        const cognitoSecrets = await getCognitoSecrets();
         const cognito = new AWS.CognitoIdentityServiceProvider();
         let { username, email, password } = req.body;
         const filter = new Filter();
@@ -142,9 +179,11 @@ const appPromise = initialize().then(initializedApp => {
             });
         }
 
+        const connection = await pool.getConnection();
+
         try {
-            const emailExists = await checkForDuplicateEmail(email, secrets.USER_POOL_ID, cognito);
-            const usernameExists = await checkForDuplicateUsername(username, secrets.USER_POOL_ID, cognito);
+            const emailExists = await checkForDuplicateEmail(email, cognitoSecrets.USER_POOL_ID, cognito);
+            const usernameExists = await checkForDuplicateUsername(username, cognitoSecrets.USER_POOL_ID, cognito);
 
             if (emailExists && usernameExists) {
                 return res.status(409).json({
@@ -186,14 +225,48 @@ const appPromise = initialize().then(initializedApp => {
                     }
                 }
             });
-            return res.status(201).json({
-                message: 'Registration Successful! Please check your email for verification.',
-                code: 'REGISTRATION_SUCCESS',
-                details: {
-                    email,
-                    username
+
+            try {
+                await connection.beginTransaction();
+
+                const [userResult] = await pool.execute(
+                    'INSERT INTO users (username) VALUES (?)',
+                    [username]
+                );
+                const userId = userResult.userId;
+
+                const [games] = await pool.execute('SELECT id FROM games');
+                await Promise.all(games.map(game =>
+                    pool.execute(
+                        'INSERT INTO game_stats (user_id, game_id) VALUES (?, ?)',
+                        [userId, game.id]
+                    )
+                ));
+
+                await connection.commit();
+
+                return res.status(201).json({
+                    message: 'Registration Successful! Please check your email for verification.',
+                    code: 'REGISTRATION_SUCCESS',
+                    details: {
+                        email,
+                        username
+                    }
+                });
+            } catch (dbError) {
+                await connection.rollback();
+                console.error('Database error:', dbError);
+                try {
+                    const params = {
+                        UserPoolId: cognitoSecrets.USER_POOL_ID,
+                        Username: username
+                    };
+                    await cognito.adminDeleteUser(params).promise();
+                } catch (cleanupError) {
+                    console.error('Cognito cleanup error:', cleanupError);
                 }
-            });
+                throw dbError;
+            }
         } catch (error) {
             console.error('Cognito sign up error:', error);
             if (error.code === 'LimitExceededException') {
@@ -212,6 +285,8 @@ const appPromise = initialize().then(initializedApp => {
                     error: error.message
                 }
             });
+        } finally {
+            connection.release();
         }
     });
     return app;
