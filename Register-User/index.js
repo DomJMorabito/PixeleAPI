@@ -28,7 +28,7 @@ async function getDbSecrets() {
 async function getCognitoSecrets() {
     try {
         const data = await secretsManager.getSecretValue({
-            SecretId: process.env.SECRET_ID
+            SecretId: process.env.AUTH_SECRET_ID
         }).promise();
         try {
             return JSON.parse(data.SecretString);
@@ -52,7 +52,7 @@ async function initialize() {
         ]);
         if (!cognitoSecrets.USER_POOL_CLIENT_ID || !cognitoSecrets.USER_POOL_ID) {
             throw new Error('Required Cognito credentials not found in secrets');
-        } else if (!dbSecrets.host || !dbSecrets.username || !dbSecrets.password || !dbSecrets.dbname || !dbSecrets.port) {
+        } else if (!dbSecrets.host || !dbSecrets.username || !dbSecrets.password || !dbSecrets.port) {
             throw new Error('Required RDS credentials not found in secrets');
         }
 
@@ -60,7 +60,7 @@ async function initialize() {
             host: dbSecrets.host,
             user: dbSecrets.username,
             password: dbSecrets.password,
-            database: dbSecrets.dbname,
+            database: 'pixele',
             port: dbSecrets.port,
             waitForConnections: true,
             connectionLimit: 10,
@@ -216,20 +216,10 @@ const appPromise = initialize().then(initializedApp => {
                 });
             }
 
-            await signUp({
-                username: username,
-                password: password,
-                options: {
-                    userAttributes: {
-                        email: email,
-                    }
-                }
-            });
-
             try {
                 await connection.beginTransaction();
 
-                const [userResult] = await pool.execute(
+                const [userResult] = await connection.execute(
                     'INSERT INTO users (username) VALUES (?)',
                     [username]
                 );
@@ -243,6 +233,16 @@ const appPromise = initialize().then(initializedApp => {
                     )
                 ));
 
+                await signUp({
+                    username: username,
+                    password: password,
+                    options: {
+                        userAttributes: {
+                            email: email,
+                        }
+                    }
+                });
+
                 await connection.commit();
 
                 return res.status(201).json({
@@ -255,7 +255,6 @@ const appPromise = initialize().then(initializedApp => {
                 });
             } catch (dbError) {
                 await connection.rollback();
-                console.error('Database error:', dbError);
                 try {
                     const params = {
                         UserPoolId: cognitoSecrets.USER_POOL_ID,
@@ -265,7 +264,6 @@ const appPromise = initialize().then(initializedApp => {
                 } catch (cleanupError) {
                     console.error('Cognito cleanup error:', cleanupError);
                 }
-                throw dbError;
             }
         } catch (error) {
             console.error('Cognito sign up error:', error);
