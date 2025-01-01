@@ -1,13 +1,14 @@
 import express from 'express';
 import serverless from 'serverless-http';
 import AWS from 'aws-sdk';
+import mysql from 'mysql2/promise';
 
 const secretsManager = new AWS.SecretsManager();
 
-async function getSecrets() {
+async function getDbSecrets() {
     try {
         const data = await secretsManager.getSecretValue({
-            SecretId: process.env.SECRET_ID
+            SecretId: process.env.DB_SECRET_ID
         }).promise();
         try {
             return JSON.parse(data.SecretString);
@@ -21,12 +22,48 @@ async function getSecrets() {
     }
 }
 
+async function getCognitoSecrets() {
+    try {
+        const data = await secretsManager.getSecretValue({
+            SecretId: process.env.AUTH_SECRET_ID
+        }).promise();
+        try {
+            return JSON.parse(data.SecretString);
+        } catch (parseError) {
+            console.error('Error parsing secrets:', parseError);
+            throw new Error('Invalid secret format');
+        }
+    } catch (error) {
+        console.error('Error retrieving secrets:', error);
+        throw error;
+    }
+}
+
+let pool;
+
 async function initialize() {
     try {
-        const secrets = await getSecrets();
-        if (!secrets.USER_POOL_CLIENT_ID) {
+        const [dbSecrets, cognitoSecrets] = await Promise.all([
+            getDbSecrets(),
+            getCognitoSecrets()
+        ]);
+        if (!cognitoSecrets.USER_POOL_CLIENT_ID || !cognitoSecrets.USER_POOL_ID) {
             throw new Error('Required Cognito credentials not found in secrets');
+        } else if (!dbSecrets.host || !dbSecrets.username || !dbSecrets.password || !dbSecrets.port) {
+            throw new Error('Required RDS credentials not found in secrets');
         }
+
+        pool = mysql.createPool({
+            host: dbSecrets.host,
+            user: dbSecrets.username,
+            password: dbSecrets.password,
+            database: 'pixele',
+            port: dbSecrets.port,
+            waitForConnections: true,
+            connectionLimit: 10,
+            queueLimit: 5
+        });
+
         return express();
     } catch (error) {
         console.error('Initialization failed:', error);
@@ -51,7 +88,7 @@ const appPromise = initialize().then(initializedApp => {
     });
 
     app.post('/users/verify', async (req, res) => {
-        const secrets = await getSecrets();
+        const cognitoSecrets = await getCognitoSecrets();
         const cognito = new AWS.CognitoIdentityServiceProvider();
         const { username, verificationCode } = req.body;
 
@@ -69,32 +106,65 @@ const appPromise = initialize().then(initializedApp => {
         }
 
         const params = {
-            ClientId: secrets.USER_POOL_CLIENT_ID,
+            ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
             Username: username,
             ConfirmationCode: verificationCode,
         }
 
         try {
             await cognito.confirmSignUp(params).promise();
-            res.status(200).json({
-                message: 'Verification Successful!',
-                code: 'VERIFICATION_SUCCESS',
-                details: { username }
-            });
-        } catch (error) {
-            console.error('Verification error:', error);
 
-            switch (error.code) {
-                case 'CodeMismatchException':
-                    return res.status(400).json({
-                        message: 'Verification code is incorrect.',
-                        code: 'INVALID_CODE',
+            const connection = await pool.getConnection();
+            try {
+                await connection.beginTransaction();
+
+                const [result] = await connection.execute(
+                    'UPDATE users SET confirmed = TRUE WHERE username = ?',
+                    [username]
+                );
+
+                if (result.affectedRows === 0) {
+                    await connection.rollback();
+                    return res.status(404).json({
+                        message: 'User not found.',
+                        code: 'USER_NOT_FOUND',
                         details: { username }
                     });
+                }
+
+                await connection.commit();
+
+                res.status(200).json({
+                    message: 'Verification Successful!',
+                    code: 'VERIFICATION_SUCCESS',
+                    details: { username }
+                });
+            } catch (dbError) {
+                console.error('Database error:', dbError);
+                await connection.rollback();
+                return res.status(500).json({
+                    message: 'Database error occurred. Please try again later.',
+                    code: 'DATABASE_ERROR',
+                    details: {
+                        username
+                    }
+                });
+            } finally {
+                connection.release();
+            }
+        } catch (error) {
+            console.error('Verification error:', error);
+            switch (error.code) {
                 case 'UserNotFoundException':
                     return res.status(404).json({
                         message: 'User not found.',
                         code: 'USER_NOT_FOUND',
+                        details: { username }
+                    });
+                case 'CodeMismatchException':
+                    return res.status(400).json({
+                        message: 'Verification code is incorrect.',
+                        code: 'INVALID_CODE',
                         details: { username }
                     });
                 case 'NotAuthorizedException':

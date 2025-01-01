@@ -61,9 +61,9 @@ const appPromise = initialize().then(initializedApp => {
     });
 
     app.post('/users/resend-verification-code', async (req, res) => {
-        const { username } = req.body;
+        const { rawUsername } = req.body;
 
-        if (!username) {
+        if (!rawUsername) {
             return res.status(400).json({
                 message: 'Username is required',
                 code: 'MISSING_FIELDS',
@@ -73,8 +73,42 @@ const appPromise = initialize().then(initializedApp => {
             });
         }
 
+        const username = rawUsername.trim().toLowerCase();
+
         try {
-            await resendSignUpCode({ username: username.trim() });
+            const cognito = new AWS.CognitoIdentityServiceProvider();
+            const secrets = await getSecrets();
+
+            const params = {
+                UserPoolId: secrets.USER_POOL_ID,
+                Username: username
+            };
+
+            try {
+                const userResponse = await cognito.adminGetUser(params).promise();
+                const isConfirmed = userResponse.UserStatus === 'CONFIRMED';
+
+                if (isConfirmed) {
+                    return res.status(409).json({
+                        message: 'This account is already verified.',
+                        code: 'ALREADY_VERIFIED',
+                        details: {
+                            username
+                        }
+                    });
+                }
+            } catch (error) {
+                if (error.code === 'UserNotFoundException') {
+                    return res.status(404).json({
+                        message: 'User not found.',
+                        code: 'USER_NOT_FOUND',
+                        details: { username }
+                    });
+                }
+            }
+
+            await resendSignUpCode({ username: username });
+
             res.status(200).json({
                 message: 'Successfully resent verification code.',
                 code: 'RESEND_SUCCESS',
@@ -84,13 +118,6 @@ const appPromise = initialize().then(initializedApp => {
             });
         } catch (error) {
             console.error('Error resending verification code:', error);
-            if (error.name === 'UserNotFoundException') {
-                return res.status(404).json({
-                    message: 'User not found.',
-                    code: 'USER_NOT_FOUND',
-                    details: { username }
-                });
-            }
             if (error.name === 'LimitExceededException') {
                 return res.status(429).json({
                     message: 'Too many attempts. Please try again later.',
