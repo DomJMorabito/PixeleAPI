@@ -61,9 +61,9 @@ const appPromise = initialize().then(initializedApp => {
     });
 
     app.post('/users/resend-verification-code', async (req, res) => {
-        const { rawUsername } = req.body;
+        const { username } = req.body;
 
-        if (!rawUsername) {
+        if (!username) {
             return res.status(400).json({
                 message: 'Username is required',
                 code: 'MISSING_FIELDS',
@@ -73,7 +73,7 @@ const appPromise = initialize().then(initializedApp => {
             });
         }
 
-        const username = rawUsername.trim().toLowerCase();
+        const normalizedUsername = username.trim().toLowerCase();
 
         try {
             const cognito = new AWS.CognitoIdentityServiceProvider();
@@ -81,7 +81,7 @@ const appPromise = initialize().then(initializedApp => {
 
             const params = {
                 UserPoolId: secrets.USER_POOL_ID,
-                Username: username
+                Username: normalizedUsername
             };
 
             try {
@@ -107,7 +107,7 @@ const appPromise = initialize().then(initializedApp => {
                 }
             }
 
-            await resendSignUpCode({ username: username });
+            await resendSignUpCode({ username: normalizedUsername });
 
             res.status(200).json({
                 message: 'Successfully resent verification code.',
