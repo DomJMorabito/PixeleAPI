@@ -6,10 +6,10 @@ import AWS from 'aws-sdk';
 
 const secretsManager = new AWS.SecretsManager();
 
-async function getCognitoSecrets() {
+async function getSecrets() {
     try {
         const data = await secretsManager.getSecretValue({
-            SecretId: process.env.AUTH_SECRET_ID
+            SecretId: process.env.SECRET_ID
         }).promise();
         try {
             return JSON.parse(data.SecretString);
@@ -25,7 +25,7 @@ async function getCognitoSecrets() {
 
 async function initialize() {
     try {
-        const secrets = await getCognitoSecrets();
+        const secrets = await getSecrets();
         if (!secrets.USER_POOL_CLIENT_ID || !secrets.USER_POOL_ID) {
             throw new Error('Required Cognito credentials not found in secrets');
         }
@@ -61,7 +61,7 @@ const appPromise = initialize().then(initializedApp => {
     });
 
     app.post('/users/reset-password/request', async (req, res) => {
-        const cognitoSecrets = await getCognitoSecrets();
+        const secrets = await getSecrets();
         const cognito = new AWS.CognitoIdentityServiceProvider();
         let { email } = req.body;
 
@@ -76,7 +76,7 @@ const appPromise = initialize().then(initializedApp => {
 
         try {
             const params = {
-                UserPoolId: cognitoSecrets.USER_POOL_ID,
+                UserPoolId: secrets.USER_POOL_ID,
                 Filter: `email = "${email}"`,
                 Limit: 1
             };
