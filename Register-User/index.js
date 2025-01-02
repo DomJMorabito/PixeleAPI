@@ -217,26 +217,10 @@ const appPromise = initialize().then(initializedApp => {
                 });
             }
 
-            try {
-                await signUp({
-                    username: username,
-                    password: password,
-                    options: {
-                        userAttributes: {
-                            email: email,
-                        }
-                    }
-                });
-            } catch (cognitoError) {
-                console.error('Cognito signup failed:', cognitoError);
-                throw cognitoError;
-            }
-
             const connection = await pool.getConnection();
 
             try {
                 await connection.beginTransaction();
-
                 const [userResult] = await connection.execute(
                     'INSERT INTO users (username) VALUES (?)',
                     [username]
@@ -252,27 +236,35 @@ const appPromise = initialize().then(initializedApp => {
                     )
                 ));
 
-                await connection.commit();
+                try {
+                    await signUp({
+                        username: username,
+                        password: password,
+                        options: {
+                            userAttributes: {
+                                email: email,
+                            }
+                        }
+                    });
 
-                return res.status(201).json({
-                    message: 'Registration Successful! Please check your email for verification.',
-                    code: 'REGISTRATION_SUCCESS',
-                    details: {
-                        email,
-                        username
-                    }
-                });
+                    await connection.commit();
+
+                    return res.status(201).json({
+                        message: 'Registration Successful! Please check your email for verification.',
+                        code: 'REGISTRATION_SUCCESS',
+                        details: {
+                            email,
+                            username
+                        }
+                    });
+                } catch (cognitoError) {
+                    await connection.rollback();
+                    console.error('Cognito SignUp failed:', cognitoError);
+                    throw cognitoError;
+                }
             } catch (dbError) {
                 await connection.rollback();
-                try {
-                    const params = {
-                        UserPoolId: cognitoSecrets.USER_POOL_ID,
-                        Username: username
-                    };
-                    await cognito.adminDeleteUser(params).promise();
-                } catch (cleanupError) {
-                    console.error('Cognito cleanup error:', cleanupError);
-                }
+                console.error('Database Insertion failed:', dbError);
                 throw dbError;
             } finally {
                 connection.release();
