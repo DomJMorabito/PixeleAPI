@@ -63,39 +63,50 @@ const appPromise = initialize().then(initializedApp => {
     app.post('/users/reset-password/request', async (req, res) => {
         const secrets = await getSecrets();
         const cognito = new AWS.CognitoIdentityServiceProvider();
-        let { email } = req.body;
+        let { identifier } = req.body;
 
-        if (!email) {
+        if (!identifier) {
             return res.status(400).json({
-                message: 'Email is required.',
+                message: 'Username or Email is required.',
                 code: 'MISSING_FIELDS'
             });
         }
 
-        email = email.toLowerCase();
+        identifier = identifier.toLowerCase();
 
         try {
-            const params = {
+            let params = {
                 UserPoolId: secrets.USER_POOL_ID,
-                Filter: `email = "${email}"`,
+                Filter: `username = "${identifier}"`,
                 Limit: 1
             };
 
-            const userData = await cognito.listUsers(params).promise();
+            let userData = await cognito.listUsers(params).promise();
+
+            if (!userData.Users || userData.Users.length === 0) {
+                params.Filter = `email = "${identifier}"`;
+                userData = await cognito.listUsers(params).promise();
+            }
 
             if (!userData.Users || userData.Users.length === 0) {
                 return res.status(404).json({
-                    message: 'No account found with this email address.',
-                    code: 'USER_NOT_FOUND'
+                    message: 'No account found with this identifier.',
+                    code: 'USER_NOT_FOUND',
+                    details: {
+                        identifier
+                    }
                 });
             }
 
-            const username = userData.Users[0].Username;
+            const user = userData.Users[0];
+            const username = user.Username;
+            const email = user.Attributes.find(attribute => attribute.Name === 'email')?.Value;
 
             await resetPassword({ username });
 
             return res.status(200).json({
                 message: 'Password reset email sent successfully.',
+                code: 'EMAIL_SEND_SUCCESS',
                 details: {
                     email,
                     username
