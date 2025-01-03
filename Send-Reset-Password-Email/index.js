@@ -60,7 +60,7 @@ const appPromise = initialize().then(initializedApp => {
         next();
     });
 
-    app.post('/users/reset-password/request', async (req, res) => {
+    app.post('/users/reset-password/send-email', async (req, res) => {
         const secrets = await getSecrets();
         const cognito = new AWS.CognitoIdentityServiceProvider();
         let { identifier } = req.body;
