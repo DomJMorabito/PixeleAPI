@@ -63,7 +63,7 @@ const appPromise = initialize().then(initializedApp => {
     app.post('/users/reset-password/confirm-new-password', async (req, res) => {
         const { username, confirmationCode, newPassword } = req.body;
 
-        if (!username || !code || !newPassword) {
+        if (!username || !confirmationCode || !newPassword) {
             return res.status(400).json({
                 message: 'All fields are required.',
                 code: 'MISSING_FIELDS',
