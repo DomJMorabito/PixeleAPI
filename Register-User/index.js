@@ -110,9 +110,10 @@ const appPromise = initialize().then(initializedApp => {
                 code: 'MISSING_FIELDS',
                 details: {
                     missingFields: [
-                        !username && 'usernameInput',
-                        !email && 'emailInput',
-                        !password && 'passwordInput'
+                        !username && 'username',
+                        !email && 'email',
+                        !password && 'password',
+                        !password && 'confirmPassword'
                     ].filter(Boolean)
                 }
             });
@@ -174,7 +175,7 @@ const appPromise = initialize().then(initializedApp => {
                 message: 'Seriously?',
                 code: 'INAPPROPRIATE_CONTENT',
                 details: {
-                    username
+                    username: username
                 }
             });
         }
@@ -191,8 +192,8 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'Both Email and Username are already in use.',
                     code: 'DUPLICATE_CREDENTIALS',
                     details: {
-                        email,
-                        username
+                        email: email,
+                        username: username
                     }
                 });
             }
@@ -202,7 +203,7 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'Email already in use.',
                     code: 'EMAIL_EXISTS',
                     details: {
-                        email
+                        email: email
                     }
                 });
             }
@@ -212,7 +213,7 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'Username already in use.',
                     code: 'USERNAME_EXISTS',
                     details: {
-                        username
+                        username: username
                     }
                 });
             }
@@ -253,8 +254,8 @@ const appPromise = initialize().then(initializedApp => {
                         message: 'Registration Successful! Please check your email for verification.',
                         code: 'REGISTRATION_SUCCESS',
                         details: {
-                            email,
-                            username
+                            email: email,
+                            username: username
                         }
                     });
                 } catch (cognitoError) {
@@ -276,7 +277,7 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'Too many attempts. Please try again later.',
                     code: 'RATE_LIMIT_EXCEEDED',
                     details: {
-                        retryAfter: '30s'
+                        error: error
                     }
                 });
             }
@@ -284,7 +285,7 @@ const appPromise = initialize().then(initializedApp => {
                 message: 'Internal Server Error',
                 code: 'SERVER_ERROR',
                 details: {
-                    error: error.message
+                    error: error
                 }
             });
         }

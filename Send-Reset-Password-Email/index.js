@@ -68,7 +68,12 @@ const appPromise = initialize().then(initializedApp => {
         if (!identifier) {
             return res.status(400).json({
                 message: 'Username or Email is required.',
-                code: 'MISSING_FIELDS'
+                code: 'MISSING_FIELDS',
+                details: {
+                    missingFields: [
+                        !identifier && 'identifier'
+                    ].filter(Boolean)
+                }
             });
         }
 
@@ -93,7 +98,7 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'No account found with this identifier.',
                     code: 'USER_NOT_FOUND',
                     details: {
-                        identifier
+                        identifier: identifier,
                     }
                 });
             }
@@ -119,6 +124,7 @@ const appPromise = initialize().then(initializedApp => {
                         message: 'No account found with this email address.',
                         code: 'USER_NOT_FOUND',
                         details: {
+                            identifier: identifier,
                             error: error
                         }
                     });
@@ -127,6 +133,7 @@ const appPromise = initialize().then(initializedApp => {
                         message: 'Invalid email format.',
                         code: 'INVALID_EMAIL',
                         details: {
+                            identifier: identifier,
                             error: error
                         }
                     });
@@ -147,7 +154,7 @@ const appPromise = initialize().then(initializedApp => {
                         }
                     });
                 default:
-                    console.error('Reset password error:', error);
+                    console.error('Error sending email:', error);
                     return res.status(500).json({
                         message: 'Internal server error.',
                         code: 'SERVER_ERROR',

@@ -68,7 +68,9 @@ const appPromise = initialize().then(initializedApp => {
                 message: 'Username is required',
                 code: 'MISSING_FIELDS',
                 details: {
-                    missingFields: ['username']
+                    missingFields: [
+                        !username && 'username'
+                    ].filter(Boolean)
                 }
             });
         }
@@ -93,7 +95,7 @@ const appPromise = initialize().then(initializedApp => {
                         message: 'This account is already verified.',
                         code: 'ALREADY_VERIFIED',
                         details: {
-                            username
+                            username: username
                         }
                     });
                 }
@@ -102,7 +104,9 @@ const appPromise = initialize().then(initializedApp => {
                     return res.status(404).json({
                         message: 'User not found.',
                         code: 'USER_NOT_FOUND',
-                        details: { username }
+                        details: {
+                            username: username
+                        }
                     });
                 }
             }
@@ -113,7 +117,7 @@ const appPromise = initialize().then(initializedApp => {
                 message: 'Successfully resent verification code.',
                 code: 'RESEND_SUCCESS',
                 details: {
-                    username
+                    username: username
                 }
             });
         } catch (error) {
@@ -123,8 +127,7 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'Too many attempts. Please try again later.',
                     code: 'RATE_LIMIT_EXCEEDED',
                     details: {
-                        username,
-                        retryAfter: '30s'
+                        error: error
                     }
                 });
             }
@@ -133,10 +136,9 @@ const appPromise = initialize().then(initializedApp => {
                 message: 'Failed to resend verification code.',
                 code: 'SERVER_ERROR',
                 details: {
-                    error: error.message
+                    error: error
                 }
             });
-
         }
     });
     return app;

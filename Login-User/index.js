@@ -74,8 +74,8 @@ const appPromise = initialize().then(initializedApp => {
                 code: 'MISSING_FIELDS',
                 details: {
                     missingFields: [
-                        !identifier && 'usernameEmailInput',
-                        !password && 'passwordInput',
+                        !identifier && 'identifier',
+                        !password && 'password'
                     ].filter(Boolean)
                 }
             });
@@ -140,9 +140,9 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'Further authentication required.',
                     code: 'AUTH_INCOMPLETE',
                     details: {
-                        nextStep,
-                        username,
-                        email
+                        username: username,
+                        email: email,
+                        nextStep: nextStep
                     }
                 });
             }
@@ -155,7 +155,8 @@ const appPromise = initialize().then(initializedApp => {
                         message: 'No access token available after authentication.',
                         code: 'TOKEN_UNAVAILABLE',
                         details: {
-                            error: 'Access token missing from authenticated session.'
+                            username: username,
+                            email: email
                         }
                     });
                 }
@@ -205,7 +206,7 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'Failed to complete authentication.',
                     code: 'AUTH_COMPLETION_FAILED',
                     details: {
-                        error: error.message
+                        error: error
                     }
                 });
             }
@@ -220,24 +221,34 @@ const appPromise = initialize().then(initializedApp => {
                     return res.status(401).json({
                         message: 'Invalid Username/Email or Password.',
                         code: 'INVALID_CREDENTIALS',
+                        details: {
+                            error: error
+                        }
                     })
                 case 'UserNotFoundException':
                     return res.status(404).json({
                         message: 'No account associated with this Email/Username.',
                         code: 'USER_NOT_FOUND',
                         details: {
-                            identifier
+                            identifier: identifier,
+                            error: error
                         }
                     })
                 case 'TooManyRequestsException':
                     return res.status(429).json({
                         message: 'Too many attempts. Please try again later.',
-                        code: 'RATE_LIMIT_EXCEEDED'
+                        code: 'RATE_LIMIT_EXCEEDED',
+                        details: {
+                            error: error
+                        }
                     })
                 case 'LimitExceededException':
                     return res.status(429).json({
                         message: 'Request limit exceeded. Please try again later.',
-                        code: 'LIMIT_EXCEEDED'
+                        code: 'LIMIT_EXCEEDED',
+                        details: {
+                            error: error
+                        }
                     })
                 default:
                     console.error('Login error:', error);
@@ -245,7 +256,7 @@ const appPromise = initialize().then(initializedApp => {
                         message: 'Internal Server Error',
                         code: 'SERVER_ERROR',
                         details: {
-                            error: error.message
+                            error: error
                         }
                     });
             }

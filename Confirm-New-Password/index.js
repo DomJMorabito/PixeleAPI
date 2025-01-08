@@ -70,8 +70,9 @@ const appPromise = initialize().then(initializedApp => {
                 details: {
                     missingFields: [
                         !username && 'username',
-                        !confirmationCode && 'confirmationCode',
-                        !newPassword && 'newPassword'
+                        !confirmationCode && 'code',
+                        !newPassword && 'password',
+                        !newPassword && 'confirmPassword'
                     ].filter(Boolean)
                 }
             });
@@ -107,7 +108,10 @@ const appPromise = initialize().then(initializedApp => {
                     return res.status(404).json({
                         message: 'User not found.',
                         code: 'USER_NOT_FOUND',
-                        details: { username }
+                        details: {
+                            username: username,
+                            error: error
+                        }
                     });
                 }
             }
@@ -122,7 +126,7 @@ const appPromise = initialize().then(initializedApp => {
                 message: 'Successfully reset password.',
                 code: 'PASSWORD_RESET_SUCCESS',
                 details: {
-                    username
+                    username: username
                 }
             });
         } catch (error) {
@@ -132,6 +136,7 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'Invalid confirmation code.',
                     code: 'INVALID_CODE',
                     details: {
+                        code: confirmationCode,
                         error: error
                     }
                 });
@@ -141,6 +146,7 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'Confirmation code has expired.',
                     code: 'EXPIRED_CODE',
                     details: {
+                        code: confirmationCode,
                         error: error
                     }
                 });

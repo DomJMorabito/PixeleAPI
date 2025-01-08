@@ -131,7 +131,7 @@ const appPromise = initialize().then(initializedApp => {
                 message: 'Failed to complete logout.',
                 code: 'LOGOUT_FAILED',
                 details: {
-                    error: error.message
+                    error: error
                 }
             });
         }

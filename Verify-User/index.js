@@ -184,8 +184,7 @@ const appPromise = initialize().then(initializedApp => {
                         message: 'Too many attempts. Please try again later.',
                         code: 'RATE_LIMIT_EXCEEDED',
                         details: {
-                            username,
-                            retryAfter: '30s'
+                            error
                         }
                     });
                 default:

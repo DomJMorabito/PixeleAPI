@@ -60,7 +60,7 @@ const appPromise = initialize().then(initializedApp => {
                 message: 'Username is required.',
                 code: 'MISSING_FIELDS',
                 details: {
-                    providedUsername: username
+                    username: username
                 }
             });
         }
