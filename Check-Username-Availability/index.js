@@ -82,7 +82,7 @@ const appPromise = initialize().then(initializedApp => {
                     message: 'Too many attempts. Please try again later.',
                     code: 'RATE_LIMIT_EXCEEDED',
                     details: {
-                        retryAfter: '30s'
+                        error: error
                     }
                 });
             }
@@ -90,7 +90,7 @@ const appPromise = initialize().then(initializedApp => {
                 message: 'Internal Server Error',
                 code: 'SERVER_ERROR',
                 details: {
-                    error: error.message
+                    error: error
                 }
             });
         }
