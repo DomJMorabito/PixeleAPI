@@ -127,35 +127,30 @@ const appPromise = initialize().then(initializedApp => {
             });
         } catch (error) {
             console.error('Error confirming password reset:', error);
-
             if (error.name === 'CodeMismatchException') {
                 return res.status(400).json({
                     message: 'Invalid confirmation code.',
                     code: 'INVALID_CODE',
                     details: {
-                        username,
-                        confirmationCode
+                        error: error
                     }
                 });
             }
-
             if (error.name === 'ExpiredCodeException') {
                 return res.status(400).json({
                     message: 'Confirmation code has expired.',
                     code: 'EXPIRED_CODE',
                     details: {
-                        username,
-                        confirmationCode
+                        error: error
                     }
                 });
             }
-
             if (error.name === 'LimitExceededException') {
                 return res.status(429).json({
                     message: 'Too many attempts. Please try again later.',
                     code: 'RATE_LIMIT_EXCEEDED',
                     details: {
-                        retryAfter: '30s'
+                        error: error
                     }
                 });
             }
@@ -163,7 +158,7 @@ const appPromise = initialize().then(initializedApp => {
                 message: 'Internal Server Error',
                 code: 'SERVER_ERROR',
                 details: {
-                    error: error.message
+                    error: error
                 }
             });
         }
