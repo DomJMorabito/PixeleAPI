@@ -117,22 +117,34 @@ const appPromise = initialize().then(initializedApp => {
                 case 'UserNotFoundException':
                     return res.status(404).json({
                         message: 'No account found with this email address.',
-                        code: 'USER_NOT_FOUND'
+                        code: 'USER_NOT_FOUND',
+                        details: {
+                            error: error
+                        }
                     });
                 case 'InvalidParameterException':
                     return res.status(400).json({
                         message: 'Invalid email format.',
-                        code: 'INVALID_EMAIL'
+                        code: 'INVALID_EMAIL',
+                        details: {
+                            error: error
+                        }
                     });
                 case 'TooManyRequestsException':
                     return res.status(429).json({
                         message: 'Too many attempts. Please try again later.',
-                        code: 'RATE_LIMIT_EXCEEDED'
+                        code: 'RATE_LIMIT_EXCEEDED',
+                        details: {
+                            error: error
+                        }
                     });
                 case 'LimitExceededException':
                     return res.status(429).json({
                         message: 'Request limit exceeded. Please try again later.',
-                        code: 'RATE_LIMIT_EXCEEDED'
+                        code: 'RATE_LIMIT_EXCEEDED',
+                        details: {
+                            error: error
+                        }
                     });
                 default:
                     console.error('Reset password error:', error);
@@ -140,7 +152,7 @@ const appPromise = initialize().then(initializedApp => {
                         message: 'Internal server error.',
                         code: 'SERVER_ERROR',
                         details: {
-                            error: error.message
+                            error: error
                         }
                     });
             }
