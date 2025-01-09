@@ -7,10 +7,10 @@ import { signUp } from 'aws-amplify/auth';
 
 // Utils Imports:
 
-import { initialize } from './utils/init/initialize';
+import { initialize } from './utils/init/initialize.js';
 import { corsMiddleware } from './utils/middleware/cors.js';
-import { checkForDuplicateEmail, checkForDuplicateUsername } from './utils/auth/checks';
-import { getCognitoSecrets } from './utils/aws/secrets';
+import { checkForDuplicateEmail, checkForDuplicateUsername } from './utils/auth/checks.js';
+import { getCognitoSecrets } from './utils/aws/secrets.js';
 import { validateInput } from "./utils/middleware/validate-input.js";
 
 let app;

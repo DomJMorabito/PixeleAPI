@@ -16,9 +16,7 @@ export const validateInput = (req, res, next) => {
             message: 'All fields must be valid.',
             code: 'INVALID_INPUT',
             details: {
-                invalidFields: [
-                    typeof username !== 'string' && 'username'
-                ].filter(Boolean)
+                username: username
             }
         });
     }

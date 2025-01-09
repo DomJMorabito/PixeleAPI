@@ -7,7 +7,7 @@ import AWS from 'aws-sdk';
 // Utils Imports:
 
 import { corsMiddleware } from './utils/middleware/cors.js';
-import { initialize } from './utils/init/initialize';
+import { initialize } from './utils/init/initialize.js';
 import { getCognitoSecrets } from "./utils/aws/secrets.js";
 import { validateInput } from './utils/middleware/validate-input.js';
 
