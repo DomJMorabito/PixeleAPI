@@ -5,7 +5,7 @@ import { getDbSecrets } from "../aws/secrets.js";
 
 export const initialize = async () => {
     try {
-        const dbSecrets = await getDbSecrets().promise();
+        const dbSecrets = await getDbSecrets();
 
         const app = express();
         const pool = createPool(dbSecrets);
