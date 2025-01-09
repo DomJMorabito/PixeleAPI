@@ -1,7 +1,11 @@
+// Package Imports:
+
 import express from 'express';
 import serverless from 'serverless-http';
 import { resetPassword } from 'aws-amplify/auth';
 import AWS from 'aws-sdk';
+
+// Utils Imports:
 
 import { getSecrets } from './utils/aws/secrets.js';
 import { initialize } from './utils/init/initialize.js';

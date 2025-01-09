@@ -1,8 +1,12 @@
+// Package Imports:
+
 import express from 'express';
 import serverless from 'serverless-http';
 import cookieParser from 'cookie-parser';
 import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import AWS from 'aws-sdk';
+
+// Utils Imports:
 
 import { initialize } from './utils/init/initialize.js';
 import { validateInput } from './utils/middleware/validate-input.js';

@@ -1,7 +1,11 @@
+// Package Imports:
+
 import express from 'express';
 import serverless from 'serverless-http';
 import AWS from 'aws-sdk';
 import { signUp } from 'aws-amplify/auth';
+
+// Utils Imports:
 
 import { initialize } from './utils/init/initialize';
 import { corsMiddleware } from './utils/middleware/cors.js';

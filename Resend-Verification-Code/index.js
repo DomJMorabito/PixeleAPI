@@ -1,7 +1,11 @@
+// Package Imports:
+
 import express from 'express';
 import serverless from 'serverless-http';
 import { resendSignUpCode } from 'aws-amplify/auth';
 import AWS from 'aws-sdk';
+
+// Utils Imports:
 
 import { validateInput } from 'utils/middleware/validate-input.js';
 import { corsMiddleware } from 'utils/middleware/cors.js';

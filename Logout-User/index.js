@@ -1,7 +1,11 @@
+// Package Imports:
+
 import express from 'express';
 import serverless from 'serverless-http';
 import cookieParser from 'cookie-parser';
 import { signOut, fetchAuthSession } from 'aws-amplify/auth';
+
+// Utils Imports:
 
 import { initialize } from './utils/init/initialize.js';
 import { corsMiddleware } from "./utils/middleware/cors.js";

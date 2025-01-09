@@ -1,6 +1,10 @@
+// Package Imports:
+
 import AWS from 'aws-sdk';
 import express from "express";
 import serverless from 'serverless-http';
+
+// Utils Imports:
 
 import { getSecrets } from './utils/aws/secrets.js';
 import { corsMiddleware } from './utils/middleware/cors.js';
