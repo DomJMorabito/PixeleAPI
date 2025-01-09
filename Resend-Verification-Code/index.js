@@ -7,10 +7,10 @@ import AWS from 'aws-sdk';
 
 // Utils Imports:
 
-import { validateInput } from 'utils/middleware/validate-input.js';
-import { corsMiddleware } from 'utils/middleware/cors.js';
-import { getSecrets } from 'utils/aws/secrets.js';
-import { initialize } from 'utils/init/initialize.js';
+import { validateInput } from './utils/middleware/validate-input.js';
+import { corsMiddleware } from './utils/middleware/cors.js';
+import { getSecrets } from './utils/aws/secrets.js';
+import { initialize } from './utils/init/initialize.js';
 
 let app;
 const appPromise = initialize().then(initializedApp => {
