@@ -3,7 +3,7 @@
 import express from 'express';
 import serverless from 'serverless-http';
 import cookieParser from 'cookie-parser';
-import { signOut, fetchAuthSession } from 'aws-amplify/auth';
+import { signOut } from 'aws-amplify/auth';
 
 // Utils Imports:
 
@@ -33,16 +33,6 @@ const appPromise = initialize().then(initializedApp => {
         }
 
         try {
-            try {
-                const session = await fetchAuthSession();
-
-                if (!session.tokens?.accessToken) {
-                    console.error('Invalid session.');
-                }
-            } catch (error) {
-                console.error('Error validating session', error);
-            }
-
             await signOut();
 
             res.clearCookie('pixele_session', {
