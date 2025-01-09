@@ -108,12 +108,19 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 } catch (cognitoError) {
                     await connection.rollback();
                     console.error('Cognito SignUp failed:', cognitoError);
-                    throw cognitoError;
                 }
             } catch (dbError) {
                 await connection.rollback();
                 console.error('Database Insertion failed:', dbError);
-                throw dbError;
+                return res.status(500).json({
+                    message: 'Database error occurred. Please try again later.',
+                    code: 'DATABASE_ERROR',
+                    details: {
+                        error: dbError,
+                        email: email,
+                        username: username
+                    }
+                });
             } finally {
                 connection.release();
             }

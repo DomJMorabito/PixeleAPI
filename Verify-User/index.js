@@ -67,7 +67,8 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                     message: 'Database error occurred. Please try again later.',
                     code: 'DATABASE_ERROR',
                     details: {
-                        username
+                        error: dbError,
+                        username: username
                     }
                 });
             } finally {

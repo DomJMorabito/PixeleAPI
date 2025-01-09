@@ -120,6 +120,15 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 } catch (dbError) {
                     await connection.rollback();
                     console.error('Error updating last_login:', dbError);
+                    return res.status(500).json({
+                        message: 'Database error occurred. Please try again later.',
+                        code: 'DATABASE_ERROR',
+                        details: {
+                            error: dbError,
+                            email: email,
+                            username: username
+                        }
+                    });
                 } finally {
                     connection.release();
                 }

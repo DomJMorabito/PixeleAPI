@@ -11,7 +11,6 @@ export const getSecrets = async () => {
             return JSON.parse(data.SecretString);
         } catch (parseError) {
             console.error('Error parsing secrets:', parseError);
-            throw new Error('Invalid secret format');
         }
     } catch (error) {
         console.error('Error retrieving secrets:', error);

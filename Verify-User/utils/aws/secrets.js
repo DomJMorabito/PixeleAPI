@@ -11,7 +11,6 @@ export const getDbSecrets = async () => {
             return JSON.parse(data.SecretString);
         } catch (parseError) {
             console.error('Error parsing secrets:', parseError);
-            throw new Error('Invalid secret format');
         }
     } catch (error) {
         console.error('Error retrieving secrets:', error);
@@ -28,7 +27,6 @@ export const getCognitoSecrets = async () => {
             return JSON.parse(data.SecretString);
         } catch (parseError) {
             console.error('Error parsing secrets:', parseError);
-            throw new Error('Invalid secret format');
         }
     } catch (error) {
         console.error('Error retrieving secrets:', error);
