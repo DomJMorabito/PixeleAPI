@@ -1,16 +1,14 @@
 export const validateInput = (req, res, next) => {
-    const { username } = req.query.username;
+    const { username } = req.query;
 
     if (!username) {
-        if (!username) {
-            return res.status(400).json({
-                message: 'Username is required.',
-                code: 'MISSING_FIELDS',
-                details: {
-                    username: username
-                }
-            });
-        }
+        return res.status(400).json({
+            message: 'Username is required.',
+            code: 'MISSING_FIELDS',
+            details: {
+                username: username
+            }
+        });
     }
 
     if (typeof username !== 'string') {
