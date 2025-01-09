@@ -1,81 +1,21 @@
 import express from 'express';
 import serverless from 'serverless-http';
-import { Amplify } from 'aws-amplify';
 import { resendSignUpCode } from 'aws-amplify/auth';
 import AWS from 'aws-sdk';
 
-const secretsManager = new AWS.SecretsManager();
-
-async function getSecrets() {
-    try {
-        const data = await secretsManager.getSecretValue({
-            SecretId: process.env.SECRET_ID
-        }).promise();
-        try {
-            return JSON.parse(data.SecretString);
-        } catch (parseError) {
-            console.error('Error parsing secrets:', parseError);
-            throw new Error('Invalid secret format');
-        }
-    } catch (error) {
-        console.error('Error retrieving secrets:', error);
-        throw error;
-    }
-}
-
-async function initialize() {
-    try {
-        const secrets = await getSecrets();
-        if (!secrets.USER_POOL_CLIENT_ID || !secrets.USER_POOL_ID) {
-            throw new Error('Required Cognito credentials not found in secrets');
-        }
-        Amplify.configure({
-            Auth: {
-                Cognito: {
-                    userPoolClientId: secrets.USER_POOL_CLIENT_ID,
-                    userPoolId: secrets.USER_POOL_ID,
-                }
-            }
-        });
-        return express();
-    } catch (error) {
-        console.error('Initialization failed:', error);
-        throw error;
-    }
-}
+import { validateInput } from 'utils/middleware/validate-input.js';
+import { corsMiddleware } from 'utils/middleware/cors.js';
+import { getSecrets } from 'utils/aws/secrets.js';
+import { initialize } from 'utils/init/initialize.js';
 
 let app;
 const appPromise = initialize().then(initializedApp => {
     app = initializedApp;
     app.use(express.json({ limit: '10kb' }));
-    app.use((req, res, next) => {
-        res.setHeader('Access-Control-Allow-Origin', 'https://pixele.gg');
-        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-        res.setHeader('X-Content-Type-Options', 'nosniff');
-        if (req.method === 'OPTIONS') {
-            return res.status(200).end();
-        }
-        console.log(`${req.method} ${req.path} - IP: ${req.ip}`);
-        next();
-    });
+    app.use(corsMiddleware);
 
-    app.post('/users/resend-verification-code', async (req, res) => {
+    app.post('/users/resend-verification-code', validateInput, async (req, res) => {
         const { username } = req.body;
-
-        if (!username) {
-            return res.status(400).json({
-                message: 'Username is required',
-                code: 'MISSING_FIELDS',
-                details: {
-                    missingFields: [
-                        !username && 'username'
-                    ].filter(Boolean)
-                }
-            });
-        }
-
-        const normalizedUsername = username.trim().toLowerCase();
 
         try {
             const cognito = new AWS.CognitoIdentityServiceProvider();
@@ -83,7 +23,7 @@ const appPromise = initialize().then(initializedApp => {
 
             const params = {
                 UserPoolId: secrets.USER_POOL_ID,
-                Username: normalizedUsername
+                Username: username
             };
 
             try {
@@ -111,7 +51,7 @@ const appPromise = initialize().then(initializedApp => {
                 }
             }
 
-            await resendSignUpCode({ username: normalizedUsername });
+            await resendSignUpCode({ username: username });
 
             res.status(200).json({
                 message: 'Successfully resent verification code.',

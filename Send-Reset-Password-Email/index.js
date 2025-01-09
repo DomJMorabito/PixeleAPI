@@ -1,83 +1,24 @@
 import express from 'express';
 import serverless from 'serverless-http';
 import { resetPassword } from 'aws-amplify/auth';
-import { Amplify } from 'aws-amplify';
 import AWS from 'aws-sdk';
 
-const secretsManager = new AWS.SecretsManager();
-
-async function getSecrets() {
-    try {
-        const data = await secretsManager.getSecretValue({
-            SecretId: process.env.SECRET_ID
-        }).promise();
-        try {
-            return JSON.parse(data.SecretString);
-        } catch (parseError) {
-            console.error('Error parsing secrets:', parseError);
-            throw new Error('Invalid secret format');
-        }
-    } catch (error) {
-        console.error('Error retrieving secrets:', error);
-        throw error;
-    }
-}
-
-async function initialize() {
-    try {
-        const secrets = await getSecrets();
-        if (!secrets.USER_POOL_CLIENT_ID || !secrets.USER_POOL_ID) {
-            throw new Error('Required Cognito credentials not found in secrets');
-        }
-        Amplify.configure({
-            Auth: {
-                Cognito: {
-                    userPoolClientId: secrets.USER_POOL_CLIENT_ID,
-                    userPoolId: secrets.USER_POOL_ID,
-                }
-            }
-        });
-        return express();
-    } catch (error) {
-        console.error('Initialization failed:', error);
-        throw error;
-    }
-}
+import { getSecrets } from './utils/aws/secrets.js';
+import { initialize } from './utils/init/initialize.js';
+import { corsMiddleware } from "./utils/middleware/cors.js";
+import { validateInput } from './utils/middleware/validate-input.js';
 
 let app;
+
 const appPromise = initialize().then(initializedApp => {
     app = initializedApp;
     app.use(express.json({ limit: '10kb' }));
-    app.use((req, res, next) => {
-        res.setHeader('Access-Control-Allow-Origin', 'https://pixele.gg');
-        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-        res.setHeader('X-Content-Type-Options', 'nosniff');
-        if (req.method === 'OPTIONS') {
-            return res.status(200).end();
-        }
-        console.log(`${req.method} ${req.path} - IP: ${req.ip}`);
-        next();
-    });
+    app.use(corsMiddleware);
 
-    app.post('/users/reset-password/send-email', async (req, res) => {
+    app.post('/users/reset-password/send-email', validateInput, async (req, res) => {
         const secrets = await getSecrets();
         const cognito = new AWS.CognitoIdentityServiceProvider();
         let { identifier } = req.body;
-
-        if (!identifier) {
-            return res.status(400).json({
-                message: 'Username or Email is required.',
-                code: 'MISSING_FIELDS',
-                details: {
-                    missingFields: [
-                        !identifier && 'identifier'
-                    ].filter(Boolean)
-                }
-            });
-        }
-
-        identifier = identifier.toLowerCase();
 
         try {
             let params = {

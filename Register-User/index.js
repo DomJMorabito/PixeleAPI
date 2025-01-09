@@ -1,185 +1,28 @@
 import express from 'express';
 import serverless from 'serverless-http';
-import { Filter } from 'bad-words';
 import AWS from 'aws-sdk';
 import { signUp } from 'aws-amplify/auth';
-import { Amplify } from 'aws-amplify';
-import mysql from 'mysql2/promise';
 
-const secretsManager = new AWS.SecretsManager();
-
-async function getDbSecrets() {
-    try {
-        const data = await secretsManager.getSecretValue({
-            SecretId: process.env.DB_SECRET_ID
-        }).promise();
-        try {
-            return JSON.parse(data.SecretString);
-        } catch (parseError) {
-            console.error('Error parsing secrets:', parseError);
-            throw new Error('Invalid secret format');
-        }
-    } catch (error) {
-        console.error('Error retrieving secrets:', error);
-        throw error;
-    }
-}
-
-async function getCognitoSecrets() {
-    try {
-        const data = await secretsManager.getSecretValue({
-            SecretId: process.env.AUTH_SECRET_ID
-        }).promise();
-        try {
-            return JSON.parse(data.SecretString);
-        } catch (parseError) {
-            console.error('Error parsing secrets:', parseError);
-            throw new Error('Invalid secret format');
-        }
-    } catch (error) {
-        console.error('Error retrieving secrets:', error);
-        throw error;
-    }
-}
-
-let pool;
-
-async function initialize() {
-    try {
-        const [dbSecrets, cognitoSecrets] = await Promise.all([
-            getDbSecrets(),
-            getCognitoSecrets()
-        ]);
-        if (!cognitoSecrets.USER_POOL_CLIENT_ID || !cognitoSecrets.USER_POOL_ID) {
-            throw new Error('Required Cognito credentials not found in secrets');
-        } else if (!dbSecrets.host || !dbSecrets.username || !dbSecrets.password || !dbSecrets.port) {
-            throw new Error('Required RDS credentials not found in secrets');
-        }
-
-        pool = mysql.createPool({
-            host: dbSecrets.host,
-            user: dbSecrets.username,
-            password: dbSecrets.password,
-            database: 'pixele',
-            port: dbSecrets.port,
-            waitForConnections: true,
-            connectionLimit: 10,
-            queueLimit: 5
-        });
-
-        Amplify.configure({
-            Auth: {
-                Cognito: {
-                    userPoolClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
-                    userPoolId: cognitoSecrets.USER_POOL_ID,
-                }
-            }
-        });
-        return express();
-    } catch (error) {
-        console.error('Initialization failed:', error);
-        throw error;
-    }
-}
+import { initialize } from './utils/init/initialize';
+import { corsMiddleware } from './utils/middleware/cors.js';
+import { checkForDuplicateEmail, checkForDuplicateUsername } from './utils/auth/checks';
+import { getCognitoSecrets } from './utils/aws/secrets';
+import { validateInput } from "./utils/middleware/validate-input.js";
 
 let app;
-const appPromise = initialize().then(initializedApp => {
-    app = initializedApp;
-    app.use(express.json({ limit: '10kb' }));
-    app.use((req, res, next) => {
-        res.setHeader('Access-Control-Allow-Origin', 'https://pixele.gg');
-        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-        res.setHeader('X-Content-Type-Options', 'nosniff');
-        if (req.method === 'OPTIONS') {
-            return res.status(200).end();
-        }
-        console.log(`${req.method} ${req.path} - IP: ${req.ip}`);
-        next();
-    });
+let pool;
 
-    app.post('/users/register', async (req, res) => {
+const appPromise = initialize().then(({ app: initializedApp, pool: initializedPool }) => {
+    app = initializedApp;
+    pool = initializedPool;
+
+    app.use(express.json({ limit: '10kb' }));
+    app.use(corsMiddleware);
+
+    app.post('/users/register', validateInput, async (req, res) => {
         const cognitoSecrets = await getCognitoSecrets();
         const cognito = new AWS.CognitoIdentityServiceProvider();
         let { username, email, password } = req.body;
-        const filter = new Filter();
-
-        if (!username || !email || !password) {
-            return res.status(400).json({
-                message: 'All fields are required.',
-                code: 'MISSING_FIELDS',
-                details: {
-                    missingFields: [
-                        !username && 'username',
-                        !email && 'email',
-                        !password && 'password',
-                        !password && 'confirmPassword'
-                    ].filter(Boolean)
-                }
-            });
-        }
-
-        username = username.toLowerCase();
-
-        if (!validateEmail(email)) {
-            return res.status(400).json({
-                message: 'Enter a valid email.',
-                code: 'INVALID_EMAIL',
-                details: {
-                    providedEmail: email
-                }
-            });
-        }
-
-        if (!validateUsernameLength(username)) {
-            return res.status(400).json({
-                message: 'Username must be 5-18 characters.',
-                code: 'INVALID_USERNAME',
-                details: {
-                    requirements: {
-                        minLength: 5,
-                        maxLength: 18
-                    }
-                }
-            });
-        }
-
-        if (!validateUsernameSpecialCharacters(username)) {
-            return res.status(400).json({
-                message: 'Username cannot contain any special characters.',
-                code: 'INVALID_USERNAME',
-                details: {
-                    requirements: {
-                        allowedCharacters: 'alphanumeric'
-                    }
-                }
-            });
-        }
-
-        if (!validatePassword(password)) {
-            return res.status(400).json({
-                message: 'Password requirements not met.',
-                code: 'INVALID_PASSWORD',
-                details: {
-                    requirements: {
-                        minLength: 8,
-                        requiresNumber: true,
-                        requiresSpecialChar: true
-                    }
-                }
-            });
-        }
-
-        if (filter.isProfane(username)) {
-            return res.status(400).json({
-                message: 'Seriously?',
-                code: 'INAPPROPRIATE_CONTENT',
-                details: {
-                    username: username
-                }
-            });
-        }
-
 
         try {
             const [emailExists, usernameExists] = await Promise.all([
@@ -293,67 +136,7 @@ const appPromise = initialize().then(initializedApp => {
     return app;
 });
 
-// Check for Duplicate Email:
-
-const checkForDuplicateEmail = async (email, userPoolId, cognito) => {
-    try {
-        const params = {
-            UserPoolId: userPoolId,
-            Filter: `email = "${email.replace(/"/g, '\\"')}"`,
-            Limit: 1,
-        };
-        const result = await cognito.listUsers(params).promise();
-        return result.Users && result.Users.length > 0;
-    } catch (error) {
-        console.error('Error checking duplicate email:', error);
-        return false;
-    }
-}
-
-// Check for Duplicate Username:
-
-const checkForDuplicateUsername = async (username, userPoolId, cognito) => {
-    try {
-        const params = {
-            UserPoolId: userPoolId,
-            Filter: `username = "${username.replace(/"/g, '\\"')}"`,
-            Limit: 1,
-        };
-        const result = await cognito.listUsers(params).promise();
-        return result.Users && result.Users.length > 0;
-    } catch (error) {
-        console.error('Error checking duplicate username:', error);
-        return false;
-    }
-}
-
 export const handler = async (event, context) => {
     await appPromise;
     return serverless(app)(event, context);
-};
-
-// Helper function to validate email format
-const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-};
-
-// Helper function to validate username length
-const validateUsernameLength = (username) => {
-    return username.length >= 5 && username.length <= 18;
-};
-
-// Helper function to validate username characters
-const validateUsernameSpecialCharacters = (username) => {
-    const specialCharRegex = /^[a-zA-Z0-9]+$/;
-    return specialCharRegex.test(username);
-};
-
-// Helper function to validate password structure
-const validatePassword = (password) => {
-    const lengthValid = password.length >= 8;
-    const containsNumber = /\d/.test(password);
-    const containsSpecial = /[^A-Za-z0-9]/.test(password);
-
-    return lengthValid && containsNumber && containsSpecial;
 };
