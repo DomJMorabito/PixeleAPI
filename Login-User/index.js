@@ -10,20 +10,22 @@ import AWS from 'aws-sdk';
 
 import { initialize } from './utils/init/initialize.js';
 import { validateInput } from './utils/middleware/validate-input.js';
-import { getSecrets } from './utils/aws/secrets.js';
+import { getCognitoSecrets } from './utils/aws/secrets.js';
 import { corsMiddleware } from './utils/middleware/cors.js';
 
 let app;
+let pool;
 
-const appPromise = initialize().then(initializedApp => {
+const appPromise = initialize().then(({ app: initializedApp, pool: initializedPool }) =>{
     app = initializedApp;
+    pool = initializedPool;
 
     app.use(express.json({ limit: '10kb' }));
     app.use(cookieParser());
     app.use(corsMiddleware);
 
     app.post('/users/login', validateInput, async (req, res) => {
-        const secrets = await getSecrets();
+        const cognitoSecrets = await getCognitoSecrets();
         const cognito = new AWS.CognitoIdentityServiceProvider();
         let { identifier, password } = req.body;
 
@@ -39,7 +41,7 @@ const appPromise = initialize().then(initializedApp => {
             if (identifier.includes('@')) {
                 try {
                     const params = {
-                        UserPoolId: secrets.USER_POOL_ID,
+                        UserPoolId: cognitoSecrets.USER_POOL_ID,
                         Filter: `email = "${identifier}"`,
                         Limit: 1
                     };
@@ -52,7 +54,7 @@ const appPromise = initialize().then(initializedApp => {
             } else {
                 try {
                     const params = {
-                        UserPoolId: secrets.USER_POOL_ID,
+                        UserPoolId: cognitoSecrets.USER_POOL_ID,
                         Username: identifier
                     };
 
@@ -71,7 +73,7 @@ const appPromise = initialize().then(initializedApp => {
             if (nextStep?.signInStep === 'CONFIRM_SIGN_UP') {
                 try {
                     await cognito.resendConfirmationCode({
-                        ClientId: secrets.USER_POOL_CLIENT_ID,
+                        ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
                         Username: username
                     }).promise();
                 } catch (error) {
@@ -103,6 +105,23 @@ const appPromise = initialize().then(initializedApp => {
                             email: email
                         }
                     });
+                }
+
+                const connection = await pool.getConnection();
+
+                try {
+                    await connection.beginTransaction();
+
+                    await connection.execute(
+                        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE username = ?',
+                        [username]
+                    );
+                    await connection.commit();
+                } catch (dbError) {
+                    await connection.rollback();
+                    console.error('Error updating last_login:', dbError);
+                } finally {
+                    connection.release();
                 }
 
                 const tokenExpiration = session.tokens.accessToken.payload.exp * 1000;

@@ -1,20 +1,29 @@
 import { Amplify } from "aws-amplify";
 import express from "express";
 
-import { getSecrets } from '../aws/secrets.js'
+import { getCognitoSecrets, getDbSecrets } from '../aws/secrets.js'
+import { createPool } from '../db/pool.js';
 
 export const initialize = async () => {
     try {
-        const secrets = await getSecrets();
+        const [dbSecrets, cognitoSecrets] = await Promise.all([
+            getDbSecrets(),
+            getCognitoSecrets()
+        ]);
+
         Amplify.configure({
             Auth: {
                 Cognito: {
-                    userPoolClientId: secrets.USER_POOL_CLIENT_ID,
-                    userPoolId: secrets.USER_POOL_ID,
+                    userPoolClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
+                    userPoolId: cognitoSecrets.USER_POOL_ID,
                 }
             }
         });
-        return express();
+
+        const app = express();
+        const pool = createPool(dbSecrets);
+
+        return { app, pool };
     } catch (error) {
         console.error('Initialization failed:', error);
         throw error;
