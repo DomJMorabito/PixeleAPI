@@ -1,8 +1,8 @@
 import express from 'express';
 import { Amplify } from 'aws-amplify';
 
-import { getDbSecrets, getCognitoSecrets } from '../aws/secrets';
-import { createPool } from '../db/pool';
+import { getDbSecrets, getCognitoSecrets } from '../aws/secrets.js';
+import { createPool } from '../db/pool.js';
 
 export const initialize = async () => {
     try {

@@ -1,6 +1,7 @@
 import express from 'express';
 import { Amplify } from 'aws-amplify';
-import { getSecrets } from '../aws/secrets';
+
+import { getSecrets } from '../aws/secrets.js';
 
 export const initialize = async () => {
     try {
