@@ -30,6 +30,12 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
         let { identifier, password } = req.body;
 
         try {
+            try {
+                await signOut();
+            } catch (error) {
+                console.log('SignOut error (non-critical):', error);
+            }
+
             let username = identifier;
             let email = identifier;
             if (identifier.includes('@')) {
