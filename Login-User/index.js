@@ -2,7 +2,6 @@
 
 import express from 'express';
 import serverless from 'serverless-http';
-import cookieParser from 'cookie-parser';
 import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import AWS from 'aws-sdk';
 
@@ -21,7 +20,6 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
     pool = initializedPool;
 
     app.use(express.json({ limit: '10kb' }));
-    app.use(cookieParser());
     app.use(corsMiddleware);
 
     app.post('/users/login', validateInput, async (req, res) => {
@@ -97,7 +95,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 const session = await fetchAuthSession();
                 console.log(session);
 
-                if (!session.tokens?.accessToken) {
+                if (!session.tokens?.accessToken || !session.tokens?.idToken) {
                     return res.status(500).json({
                         message: 'No access token available after authentication.',
                         code: 'TOKEN_UNAVAILABLE',
@@ -143,16 +141,17 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                     domain: 'pixele.gg'
                 });
 
+                res.cookie('pixele_id', session.tokens.idToken.toString(), {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: 'strict',
+                    maxAge: session.tokens.idToken.payload.exp * 1000 - Date.now(),
+                    path: '/',
+                    domain: 'pixele.gg'
+                })
+
                 return res.status(200).json({
-                    token: session.tokens.accessToken.toString(),
-                    user: {
-                        username: username,
-                        email: email
-                    },
-                    session: {
-                        isValid: true,
-                        expiresAt: new Date(session.tokens.accessToken.payload.exp * 1000)
-                    }
+                    message: 'Successfully logged in!'
                 });
             } catch (error) {
                 console.error('Error getting current user:', error);

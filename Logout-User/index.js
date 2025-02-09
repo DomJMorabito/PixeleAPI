@@ -43,6 +43,14 @@ const appPromise = initialize().then(initializedApp => {
                 domain: 'pixele.gg'
             });
 
+            res.clearCookie('pixele_id', {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'strict',
+                path: '/',
+                domain: 'pixele.gg'
+            });
+
             return res.status(200).json({
                 message: 'Successfully logged out. See ya later!'
             });
@@ -50,6 +58,14 @@ const appPromise = initialize().then(initializedApp => {
             console.error('Logout error:', error);
 
             res.clearCookie('pixele_session', {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'strict',
+                path: '/',
+                domain: 'pixele.gg'
+            });
+
+            res.clearCookie('pixele_id', {
                 httpOnly: true,
                 secure: true,
                 sameSite: 'strict',
