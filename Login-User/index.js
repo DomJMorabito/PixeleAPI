@@ -67,8 +67,6 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 }
             };
 
-            const authResult = await cognito.adminInitiateAuth(authParams).promise();
-
             try {
                 const userConfirmationStatus = await cognito.adminGetUser({
                     UserPoolId: cognitoSecrets.USER_POOL_ID,
@@ -87,8 +85,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                             code: 'CONFIRM_SIGN_UP',
                             details: {
                                 username,
-                                email,
-                                session: authResult.Session
+                                email
                             }
                         })
                     } catch (resendError) {
@@ -98,6 +95,8 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
             } catch (statusCheckError) {
                 console.error('Error checking confirmation status:', statusCheckError);
             }
+
+            const authResult = await cognito.adminInitiateAuth(authParams).promise();
 
             if (authResult.ChallengeName && (authResult.ChallengeName === 'NEW_PASSWORD_REQUIRED')) {
                 return res.status(403).json({
