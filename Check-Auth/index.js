@@ -18,7 +18,7 @@ const appPromise = initialize().then(({ app: initializedApp}) => {
     app.use(express.json({ limit: '10kb' }));
     app.use(corsMiddleware);
 
-    app.get('/users/check', async (req, res) => {
+    app.get('/users/check-auth', async (req, res) => {
         try {
             const session = await fetchAuthSession();
 
