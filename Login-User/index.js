@@ -137,7 +137,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 res.cookie('pixele_session', session.tokens.accessToken.toString(), {
                     httpOnly: true,
                     secure: true,
-                    sameSite: 'lax',
+                    sameSite: 'strict',
                     maxAge: session.tokens.accessToken.payload.exp * 1000 - Date.now(),
                     path: '/',
                     domain: 'pixele.gg'

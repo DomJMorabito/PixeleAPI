@@ -38,15 +38,7 @@ const appPromise = initialize().then(initializedApp => {
             res.clearCookie('pixele_session', {
                 httpOnly: true,
                 secure: true,
-                sameSite: 'lax',
-                path: '/',
-                domain: 'pixele.gg'
-            });
-
-            res.clearCookie('pixele_user', {
-                httpOnly: false,
-                secure: true,
-                sameSite: 'lax',
+                sameSite: 'strict',
                 path: '/',
                 domain: 'pixele.gg'
             });
@@ -60,15 +52,7 @@ const appPromise = initialize().then(initializedApp => {
             res.clearCookie('pixele_session', {
                 httpOnly: true,
                 secure: true,
-                sameSite: 'lax',
-                path: '/',
-                domain: 'pixele.gg'
-            });
-
-            res.clearCookie('pixele_user', {
-                httpOnly: false,
-                secure: true,
-                sameSite: 'lax',
+                sameSite: 'strict',
                 path: '/',
                 domain: 'pixele.gg'
             });
