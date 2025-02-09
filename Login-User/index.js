@@ -2,7 +2,7 @@
 
 import express from 'express';
 import serverless from 'serverless-http';
-// import cookieParser from 'cookie-parser';
+import cookieParser from 'cookie-parser';
 import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import AWS from 'aws-sdk';
 
@@ -21,7 +21,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
     pool = initializedPool;
 
     app.use(express.json({ limit: '10kb' }));
-    // app.use(cookieParser());
+    app.use(cookieParser());
     app.use(corsMiddleware);
 
     app.post('/users/login', validateInput, async (req, res) => {
@@ -134,28 +134,14 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                     connection.release();
                 }
 
-                // const tokenExpiration = session.tokens.accessToken.payload.exp * 1000;
-                // const cookieOptions = {
-                //     httpOnly: true,
-                //     secure: true,
-                //     sameSite: 'lax',
-                //     maxAge: tokenExpiration - Date.now(),
-                //     path: '/',
-                //     domain: 'pixele.gg'
-                // };
-
-                // res.cookie('pixele_session', session.tokens.accessToken.toString(), {
-                //     ...cookieOptions,
-                //     httpOnly: true
-                // });
-                //
-                // res.cookie('pixele_user', JSON.stringify({
-                //     username: username,
-                //     email: email
-                // }), {
-                //     ...cookieOptions,
-                //     httpOnly: false
-                // });
+                res.cookie('pixele_session', session.tokens.accessToken.toString(), {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: 'lax',
+                    maxAge: session.tokens.accessToken.payload.exp * 1000 - Date.now(),
+                    path: '/',
+                    domain: 'pixele.gg'
+                });
 
                 return res.status(200).json({
                     token: session.tokens.accessToken.toString(),

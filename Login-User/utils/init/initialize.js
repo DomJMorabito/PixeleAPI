@@ -1,8 +1,6 @@
 // Package Imports:
 
 import { Amplify } from "aws-amplify";
-import { CookieStorage } from 'aws-amplify/utils';
-import { cognitoUserPoolsTokenProvider } from 'aws-amplify/auth/cognito';
 import express from "express";
 
 // Utils Imports:
@@ -25,16 +23,6 @@ export const initialize = async () => {
                 }
             }
         });
-
-        const cookieStorage = new CookieStorage({
-            path: '/',
-            domain: 'pixele.gg',
-            expires: 365,
-            sameSite: 'strict',
-            secure: true
-        });
-
-        cognitoUserPoolsTokenProvider.setKeyValueStorage(cookieStorage);
 
         const app = express();
         const pool = createPool(dbSecrets);
