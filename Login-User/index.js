@@ -16,7 +16,7 @@ import { corsMiddleware } from './utils/middleware/cors.js';
 let app;
 let pool;
 
-const appPromise = initialize().then(({ app: initializedApp, pool: initializedPool }) =>{
+const appPromise = initialize().then(({ app: initializedApp, pool: initializedPool }) => {
     app = initializedApp;
     pool = initializedPool;
 

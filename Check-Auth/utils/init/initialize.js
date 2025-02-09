@@ -1,7 +1,7 @@
 // Package Imports:
 
-import express from 'express';
-import { Amplify } from 'aws-amplify';
+import { Amplify } from "aws-amplify";
+import express from "express";
 
 // Utils Imports:
 
@@ -10,6 +10,7 @@ import { getSecrets } from '../aws/secrets.js';
 export const initialize = async () => {
     try {
         const secrets = await getSecrets();
+
         Amplify.configure({
             Auth: {
                 Cognito: {
@@ -18,7 +19,9 @@ export const initialize = async () => {
                 }
             }
         });
-        return express();
+
+        const app = express();
+        return { app };
     } catch (error) {
         console.error('Initialization failed:', error);
         throw error;
