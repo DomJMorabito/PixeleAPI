@@ -16,14 +16,6 @@ export const initialize = async () => {
                 Cognito: {
                     userPoolClientId: secrets.USER_POOL_CLIENT_ID,
                     userPoolId: secrets.USER_POOL_ID,
-                },
-                cookieStorage: {
-                    domain: 'api.pixele.gg',
-                    path: '/',
-                    secure: true,
-                    expires: 365,
-                    sameSite: 'lax',
-                    name: 'pixele_session'
                 }
             }
         });
