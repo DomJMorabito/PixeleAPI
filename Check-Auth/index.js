@@ -2,7 +2,8 @@
 
 import express from "express";
 import serverless from "serverless-http";
-import { fetchAuthSession } from "aws-amplify/auth";
+import cookieParser from 'cookie-parser';
+import { jwtDecode } from "jwt-decode";
 import AWS from "aws-sdk";
 
 // Utils Imports:
@@ -16,13 +17,15 @@ const appPromise = initialize().then(({ app: initializedApp}) => {
     app = initializedApp;
 
     app.use(express.json({ limit: '10kb' }));
+    app.use(cookieParser());
     app.use(corsMiddleware);
 
     app.get('/users/check-auth', async (req, res) => {
         try {
-            const session = await fetchAuthSession();
+            const sessionToken = req.cookies.pixele_session;
+            console.log(sessionToken);
 
-            if (!session.tokens?.accessToken) {
+            if (!sessionToken) {
                 return res.status(401).json({
                     isAuthenticated: false,
                     message: 'No session found.',
@@ -30,7 +33,8 @@ const appPromise = initialize().then(({ app: initializedApp}) => {
                 });
             }
 
-            const decodedToken = session.tokens.accessToken.payload;
+            const decodedToken = jwtDecode(sessionToken);
+            console.log(decodedToken);
             if (decodedToken.exp * 1000 < Date.now()) {
                 return res.status(401).json({
                     isAuthenticated: false,
@@ -41,7 +45,7 @@ const appPromise = initialize().then(({ app: initializedApp}) => {
 
             const cognito = new AWS.CognitoIdentityServiceProvider();
             const params = {
-                AccessToken: session.tokens.accessToken.toString()
+                AccessToken: sessionToken
             }
 
             const userData = await cognito.getUser(params).promise();
