@@ -3,7 +3,7 @@
 import express from 'express';
 import serverless from 'serverless-http';
 import cookieParser from 'cookie-parser';
-import { signOut } from 'aws-amplify/auth';
+import AWS from 'aws-sdk';
 
 // Utils Imports:
 
@@ -25,30 +25,39 @@ const appPromise = initialize().then(initializedApp => {
         if (!sessionToken) {
             return res.status(401).json({
                 message: 'No active session found.',
-                code: 'NO_SESSION',
-                details: {
-                    error: 'User is not logged in.'
-                }
+                code: 'NO_SESSION'
             });
         }
 
+        const cookieOptions = {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'strict',
+            path: '/',
+            domain: 'pixele.gg'
+        }
+
         try {
-            await signOut();
+            const cognito = new AWS.CognitoIdentityServiceProvider();
+
+            try {
+                await cognito.globalSignOut({
+                    AccessToken: sessionToken
+                }).promise();
+            } catch (signOutError) {
+                console.log('Sign out error (non-critical):', signOutError);
+            }
 
             res.clearCookie('pixele_session', {
-                httpOnly: true,
-                secure: true,
-                sameSite: 'strict',
-                path: '/',
-                domain: 'pixele.gg'
+                ...cookieOptions
             });
 
             res.clearCookie('pixele_id', {
-                httpOnly: true,
-                secure: true,
-                sameSite: 'strict',
-                path: '/',
-                domain: 'pixele.gg'
+                ...cookieOptions
+            });
+
+            res.clearCookie('pixele_refresh', {
+                ...cookieOptions
             });
 
             return res.status(200).json({
@@ -58,27 +67,20 @@ const appPromise = initialize().then(initializedApp => {
             console.error('Logout error:', error);
 
             res.clearCookie('pixele_session', {
-                httpOnly: true,
-                secure: true,
-                sameSite: 'strict',
-                path: '/',
-                domain: 'pixele.gg'
+                ...cookieOptions
             });
 
             res.clearCookie('pixele_id', {
-                httpOnly: true,
-                secure: true,
-                sameSite: 'strict',
-                path: '/',
-                domain: 'pixele.gg'
+                ...cookieOptions
+            });
+
+            res.clearCookie('pixele_refresh', {
+                ...cookieOptions
             });
 
             return res.status(500).json({
                 message: 'Failed to complete logout.',
-                code: 'LOGOUT_FAILED',
-                details: {
-                    error: error
-                }
+                code: 'LOGOUT_FAILED'
             });
         }
     });
