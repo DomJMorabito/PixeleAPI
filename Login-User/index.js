@@ -2,7 +2,7 @@
 
 import express from 'express';
 import serverless from 'serverless-http';
-import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth';
+import { jwtDecode } from 'jwt-decode';
 import AWS from 'aws-sdk';
 
 // Utils Imports:
@@ -28,12 +28,6 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
         let { identifier, password } = req.body;
 
         try {
-            try {
-                await signOut();
-            } catch (error) {
-                console.log('SignOut error (non-critical):', error);
-            }
-
             let username = identifier;
             let email = identifier;
             if (identifier.includes('@')) {
@@ -63,117 +57,135 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 }
             }
 
-            const { isSignedIn, nextStep } = await signIn({
-                username: username,
-                password
+            const authParams = {
+                AuthFlow: 'ADMIN_USER_PASSWORD_AUTH',
+                ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
+                UserPoolId: cognitoSecrets.USER_POOL_ID,
+                AuthParameters: {
+                    USERNAME: username,
+                    PASSWORD: password
+                }
+            };
+
+            const authResult = await cognito.adminInitiateAuth(authParams).promise();
+
+            try {
+                const userConfirmationStatus = await cognito.adminGetUser({
+                    UserPoolId: cognitoSecrets.USER_POOL_ID,
+                    Username: username
+                }).promise();
+
+                if (userConfirmationStatus.UserStatus === 'UNCONFIRMED') {
+                    try {
+                        await cognito.resendConfirmationCode({
+                            ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
+                            Username: username
+                        }).promise();
+
+                        return res.status(403).json({
+                            message: 'Email verification required. Confirmation code has been resent.',
+                            code: 'CONFIRM_SIGN_UP',
+                            details: {
+                                username,
+                                email,
+                                session: authResult.Session
+                            }
+                        })
+                    } catch (resendError) {
+                        console.error('Error resending confirmation code:', resendError);
+                    }
+                }
+            } catch (statusCheckError) {
+                console.error('Error checking confirmation status:', statusCheckError);
+            }
+
+            if (authResult.ChallengeName && (authResult.ChallengeName === 'NEW_PASSWORD_REQUIRED')) {
+                return res.status(403).json({
+                    message: 'Password change required.',
+                    code: 'NEW_PASSWORD_REQUIRED',
+                    details: {
+                        username,
+                        email,
+                        session: authResult.Session
+                    }
+                })
+            }
+
+            if (!authResult.AuthenticationResult) {
+                return res.status(500).json({
+                    message: 'Authentication failed, no tokens received.',
+                    code: 'AUTH_FAILED',
+                    details: {
+                        username,
+                        email,
+                        challengeName: authResult.ChallengeName,
+                        session: authResult.Session
+                    }
+                });
+            }
+
+            const { AccessToken, IdToken, RefreshToken } = authResult.AuthenticationResult;
+
+            const connection = await pool.getConnection();
+
+            try {
+                await connection.beginTransaction();
+
+                await connection.execute(
+                    'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE username = ?',
+                    [username]
+                );
+                await connection.commit();
+            } catch (dbError) {
+                await connection.rollback();
+                console.error('Error updating last_login:', dbError);
+                return res.status(500).json({
+                    message: 'Database error occurred. Please try again later.',
+                    code: 'DATABASE_ERROR',
+                    details: {
+                        error: dbError,
+                        email: email,
+                        username: username
+                    }
+                });
+            } finally {
+                connection.release();
+            }
+
+            const accessTokenPayload = jwtDecode(AccessToken);
+            const idTokenPayload = jwtDecode(IdToken);
+
+            res.cookie('pixele_session', AccessToken, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'strict',
+                maxAge: accessTokenPayload.exp * 1000 - Date.now(),
+                path: '/',
+                domain: 'pixele.gg'
             });
 
-            if (nextStep?.signInStep === 'CONFIRM_SIGN_UP') {
-                try {
-                    await cognito.resendConfirmationCode({
-                        ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
-                        Username: username
-                    }).promise();
-                } catch (error) {
-                    console.error('Error resending confirmation code:', error);
-                }
-            }
+            res.cookie('pixele_id', IdToken, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'strict',
+                maxAge: idTokenPayload.exp * 1000 - Date.now(),
+                path: '/',
+                domain: 'pixele.gg'
+            });
 
-            if (!isSignedIn && (!nextStep || nextStep.signInStep !== 'DONE')) {
-                return res.status(403).json({
-                    message: 'Further authentication required.',
-                    code: 'AUTH_INCOMPLETE',
-                    details: {
-                        username: username,
-                        email: email,
-                        nextStep: nextStep
-                    }
-                });
-            }
+            res.cookie('pixele_refresh', RefreshToken, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'strict',
+                maxAge: 90 * 24 * 60 * 60 * 1000,
+                path: '/',
+                domain: 'pixele.gg'
+            });
 
-            try {
-                const session = await fetchAuthSession();
-                console.log(session);
-
-                if (!session.tokens?.accessToken || !session.tokens?.idToken) {
-                    return res.status(500).json({
-                        message: 'No access token available after authentication.',
-                        code: 'TOKEN_UNAVAILABLE',
-                        details: {
-                            username: username,
-                            email: email
-                        }
-                    });
-                }
-
-                const connection = await pool.getConnection();
-
-                try {
-                    await connection.beginTransaction();
-
-                    await connection.execute(
-                        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE username = ?',
-                        [username]
-                    );
-                    await connection.commit();
-                } catch (dbError) {
-                    await connection.rollback();
-                    console.error('Error updating last_login:', dbError);
-                    return res.status(500).json({
-                        message: 'Database error occurred. Please try again later.',
-                        code: 'DATABASE_ERROR',
-                        details: {
-                            error: dbError,
-                            email: email,
-                            username: username
-                        }
-                    });
-                } finally {
-                    connection.release();
-                }
-
-                res.cookie('pixele_session', session.tokens.accessToken.toString(), {
-                    httpOnly: true,
-                    secure: true,
-                    sameSite: 'strict',
-                    maxAge: session.tokens.accessToken.payload.exp * 1000 - Date.now(),
-                    path: '/',
-                    domain: 'pixele.gg'
-                });
-
-                res.cookie('pixele_id', session.tokens.idToken.toString(), {
-                    httpOnly: true,
-                    secure: true,
-                    sameSite: 'strict',
-                    maxAge: session.tokens.idToken.payload.exp * 1000 - Date.now(),
-                    path: '/',
-                    domain: 'pixele.gg'
-                })
-
-                return res.status(200).json({
-                    message: 'Successfully logged in!'
-                });
-            } catch (error) {
-                console.error('Error getting current user:', error);
-                try {
-                    await signOut();
-                } catch (error) {
-                    console.log('Cleanup signOut error (non-critical):', error);
-                }
-                return res.status(500).json({
-                    message: 'Failed to complete authentication.',
-                    code: 'AUTH_COMPLETION_FAILED',
-                    details: {
-                        error: error
-                    }
-                });
-            }
+            return res.status(200).json({
+                message: 'Successfully logged in!'
+            });
         } catch (error) {
-            try {
-                await signOut();
-            } catch (error) {
-                console.log('Cleanup signOut error (non-critical):', error);
-            }
             switch (error.name) {
                 case 'NotAuthorizedException':
                     return res.status(401).json({
