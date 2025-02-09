@@ -4,8 +4,7 @@ import express from 'express';
 
 export const initialize = async () => {
     try {
-        const app = express();
-        return { app };
+        return express();
     } catch (error) {
         console.error('Initialization failed:', error);
         throw error;
