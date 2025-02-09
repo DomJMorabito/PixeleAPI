@@ -98,18 +98,6 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
 
             const authResult = await cognito.adminInitiateAuth(authParams).promise();
 
-            if (authResult.ChallengeName && (authResult.ChallengeName === 'NEW_PASSWORD_REQUIRED')) {
-                return res.status(403).json({
-                    message: 'Password change required.',
-                    code: 'NEW_PASSWORD_REQUIRED',
-                    details: {
-                        username,
-                        email,
-                        session: authResult.Session
-                    }
-                })
-            }
-
             if (!authResult.AuthenticationResult) {
                 return res.status(500).json({
                     message: 'Authentication failed, no tokens received.',
