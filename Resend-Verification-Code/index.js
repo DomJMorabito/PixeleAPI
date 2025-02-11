@@ -2,7 +2,6 @@
 
 import express from 'express';
 import serverless from 'serverless-http';
-import { resendSignUpCode } from 'aws-amplify/auth';
 import AWS from 'aws-sdk';
 
 // Utils Imports:
@@ -32,9 +31,8 @@ const appPromise = initialize().then(initializedApp => {
 
             try {
                 const userResponse = await cognito.adminGetUser(params).promise();
-                const isConfirmed = userResponse.UserStatus === 'CONFIRMED';
 
-                if (isConfirmed) {
+                if (userResponse.UserStatus === 'CONFIRMED') {
                     return res.status(409).json({
                         message: 'This account is already verified.',
                         code: 'ALREADY_VERIFIED',
@@ -55,7 +53,12 @@ const appPromise = initialize().then(initializedApp => {
                 }
             }
 
-            await resendSignUpCode({ username: username });
+            const resendSignUpCodeParams = {
+                ClientId: secrets.USER_POOL_CLIENT_ID,
+                Username: username
+            }
+
+            await cognito.resendConfirmationCode(resendSignUpCodeParams).promise();
 
             res.status(200).json({
                 message: 'Successfully resent verification code.',
