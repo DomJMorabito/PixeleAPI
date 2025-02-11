@@ -27,53 +27,43 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
         const cognito = new AWS.CognitoIdentityServiceProvider();
         let { identifier, password } = req.body;
 
+        let username;
         try {
-            let username = identifier;
-            let email = identifier;
-            if (identifier.includes('@')) {
-                try {
-                    const params = {
-                        UserPoolId: cognitoSecrets.USER_POOL_ID,
-                        Filter: `email = "${identifier}"`,
-                        Limit: 1
-                    };
-
-                    const userData = await cognito.listUsers(params).promise();
-                    username = userData.Users[0]?.Username;
-                } catch (error) {
-                    console.error('Error looking up username:', error);
-                }
-            } else {
-                try {
-                    const params = {
-                        UserPoolId: cognitoSecrets.USER_POOL_ID,
-                        Username: identifier
-                    };
-
-                    const userData = await cognito.adminGetUser(params).promise();
-                    email = userData.UserAttributes.find(attribute => attribute.Name === 'email')?.Value || identifier;
-                } catch (error) {
-                    console.error('Error looking up email:', error);
-                }
-            }
-
-            const authParams = {
-                AuthFlow: 'ADMIN_USER_PASSWORD_AUTH',
-                ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
+            let userData;
+            const userParams = {
                 UserPoolId: cognitoSecrets.USER_POOL_ID,
-                AuthParameters: {
-                    USERNAME: username,
-                    PASSWORD: password
-                }
+                Filter: identifier.includes('@')
+                    ? `email = "${identifier}"`
+                    : `username = "${identifier}"`,
+                Limit: 1
             };
 
+            userData = await cognito.listUsers(userParams).promise();
+
+            if ((!userData.Users || userData.Users.length === 0) && !identifier.includes('@')) {
+                userData = await cognito.listUsers({
+                    UserPoolId: cognitoSecrets.USER_POOL_ID,
+                    Filter: `email = "${identifier}"`,
+                    Limit: 1
+                }).promise();
+            }
+
+            if (!userData.Users || userData.Users.length === 0) {
+                return res.status(401).json({
+                    message: 'Invalid credentials.',
+                    code: 'INVALID_CREDENTIALS'
+                });
+            }
+
+            username = userData.Users[0].Username;
+
             try {
-                const userConfirmationStatus = await cognito.adminGetUser({
+                const userDetails = await cognito.adminGetUser({
                     UserPoolId: cognitoSecrets.USER_POOL_ID,
                     Username: username
                 }).promise();
 
-                if (userConfirmationStatus.UserStatus === 'UNCONFIRMED') {
+                if (userDetails.UserStatus === 'UNCONFIRMED') {
                     try {
                         await cognito.resendConfirmationCode({
                             ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
@@ -85,7 +75,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                             code: 'CONFIRM_SIGN_UP',
                             params: {
                                 username: username,
-                                email: email
+                                email: userDetails.UserAttributes.find(attr => attr.Name === 'email')?.Value
                             }
                         })
                     } catch (resendError) {
@@ -107,14 +97,17 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 console.error('Error checking confirmation status:', statusCheckError);
             }
 
-            const authResult = await cognito.adminInitiateAuth(authParams).promise();
+            const authParams = {
+                AuthFlow: 'ADMIN_USER_PASSWORD_AUTH',
+                ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
+                UserPoolId: cognitoSecrets.USER_POOL_ID,
+                AuthParameters: {
+                    USERNAME: username,
+                    PASSWORD: password
+                }
+            };
 
-            if (!authResult.AuthenticationResult) {
-                return res.status(500).json({
-                    message: 'Authentication failed, no tokens received.',
-                    code: 'AUTH_FAILED'
-                });
-            }
+            const authResult = await cognito.adminInitiateAuth(authParams).promise();
 
             const { AccessToken, IdToken, RefreshToken } = authResult.AuthenticationResult;
 
@@ -175,25 +168,11 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
         } catch (error) {
             console.error('Login error:', error);
             switch (error.name) {
-                case 'NotAuthorizedException':
-                    return res.status(401).json({
-                        message: 'Invalid Username/Email or Password.',
-                        code: 'INVALID_CREDENTIALS'
-                    })
-                case 'UserNotFoundException':
-                    return res.status(404).json({
-                        message: 'No account associated with this Email/Username.',
-                        code: 'USER_NOT_FOUND'
-                    })
                 case 'TooManyRequestsException':
+                case 'LimitExceededException':
                     return res.status(429).json({
                         message: 'Too many attempts. Please try again later.',
                         code: 'RATE_LIMIT_EXCEEDED'
-                    })
-                case 'LimitExceededException':
-                    return res.status(429).json({
-                        message: 'Request limit exceeded. Please try again later.',
-                        code: 'LIMIT_EXCEEDED'
                     })
                 default:
                     return res.status(500).json({

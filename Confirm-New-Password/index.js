@@ -34,9 +34,9 @@ const appPromise = initialize().then(initializedApp => {
                 userData = await cognito.adminGetUser(params).promise();
             } catch (error) {
                 if (error.code === 'UserNotFoundException') {
-                    return res.status(404).json({
-                        message: 'User not found.',
-                        code: 'USER_NOT_FOUND'
+                    return res.status(401).json({
+                        message: 'Invalid credentials.',
+                        code: 'INVALID_CREDENTIALS'
                     });
                 }
             }
@@ -100,7 +100,7 @@ const appPromise = initialize().then(initializedApp => {
                     code: 'EXPIRED_CODE'
                 });
             }
-            if (error.name === 'LimitExceededException') {
+            if (error.name === 'LimitExceededException' || error.name === 'TooManyRequestsException') {
                 return res.status(429).json({
                     message: 'Too many attempts. Please try again later.',
                     code: 'RATE_LIMIT_EXCEEDED'

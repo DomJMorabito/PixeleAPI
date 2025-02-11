@@ -33,13 +33,6 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 checkForDuplicateUsername(username, cognitoSecrets.USER_POOL_ID, cognito)
             ]);
 
-            if (emailExists && usernameExists) {
-                return res.status(409).json({
-                    message: 'Both Email and Username are already in use.',
-                    code: 'DUPLICATE_CREDENTIALS'
-                });
-            }
-
             if (emailExists) {
                 return res.status(409).json({
                     message: 'Email already in use.',
@@ -110,7 +103,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
             }
         } catch (error) {
             console.error('Registration error:', error);
-            if (error.code === 'LimitExceededException') {
+            if (error.code === 'LimitExceededException' || error.code === 'TooManyRequestsException') {
                 return res.status(429).json({
                     message: 'Too many attempts. Please try again later.',
                     code: 'RATE_LIMIT_EXCEEDED'

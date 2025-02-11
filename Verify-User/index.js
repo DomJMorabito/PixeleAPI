@@ -26,31 +26,39 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
         const cognito = new AWS.CognitoIdentityServiceProvider();
         const { username, verificationCode } = req.body;
 
-        const params = {
+        const userParams = {
+            UserPoolId: cognitoSecrets.USER_POOL_ID,
+            Username: username
+        };
+
+        try {
+            await cognito.adminGetUser(userParams).promise();
+        } catch (error) {
+            if (error.code === 'NotAuthorizedException' || error.code === 'UserNotFoundException') {
+                return res.status(401).json({
+                    message: 'Invalid credentials.',
+                    code: 'INVALID_CREDENTIALS'
+                });
+            }
+        }
+
+        const confirmSignUpParams = {
             ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
             Username: username,
             ConfirmationCode: verificationCode,
         }
 
         try {
-            await cognito.confirmSignUp(params).promise();
+            await cognito.confirmSignUp(confirmSignUpParams).promise();
 
             const connection = await pool.getConnection();
             try {
                 await connection.beginTransaction();
 
-                const [result] = await connection.execute(
+                await connection.execute(
                     'UPDATE users SET confirmed = TRUE WHERE username = ?',
                     [username]
                 );
-
-                if (result.affectedRows === 0) {
-                    await connection.rollback();
-                    return res.status(404).json({
-                        message: 'User not found.',
-                        code: 'USER_NOT_FOUND'
-                    });
-                }
 
                 await connection.commit();
 
@@ -86,6 +94,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                         message: 'Verification code has expired. Please request a new one.',
                         code: 'EXPIRED_CODE'
                     })
+                case 'TooManyRequestsException':
                 case 'LimitExceededException':
                     return res.status(429).json({
                         message: 'Too many attempts. Please try again later.',

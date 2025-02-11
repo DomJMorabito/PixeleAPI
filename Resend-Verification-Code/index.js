@@ -24,27 +24,28 @@ const appPromise = initialize().then(initializedApp => {
             const cognito = new AWS.CognitoIdentityServiceProvider();
             const secrets = await getSecrets();
 
-            const params = {
+            let userResponse;
+            const userParams = {
                 UserPoolId: secrets.USER_POOL_ID,
                 Username: username
             };
 
             try {
-                const userResponse = await cognito.adminGetUser(params).promise();
-
-                if (userResponse.UserStatus === 'CONFIRMED') {
-                    return res.status(409).json({
-                        message: 'This account is already verified.',
-                        code: 'ALREADY_VERIFIED'
-                    });
-                }
+                userResponse = await cognito.adminGetUser(userParams).promise();
             } catch (error) {
-                if (error.code === 'UserNotFoundException') {
-                    return res.status(404).json({
-                        message: 'User not found.',
-                        code: 'USER_NOT_FOUND'
+                if (error.code === 'NotAuthorizedException' || error.code === 'UserNotFoundException') {
+                    return res.status(401).json({
+                        message: 'Invalid credentials.',
+                        code: 'INVALID_CREDENTIALS'
                     });
                 }
+            }
+
+            if (userResponse.UserStatus === 'CONFIRMED') {
+                return res.status(409).json({
+                    message: 'This account is already verified.',
+                    code: 'ALREADY_VERIFIED'
+                });
             }
 
             const resendSignUpCodeParams = {
@@ -60,7 +61,7 @@ const appPromise = initialize().then(initializedApp => {
             });
         } catch (error) {
             console.error('Error resending verification code:', error);
-            if (error.code === 'LimitExceededException') {
+            if (error.code === 'LimitExceededException' || error.code === 'TooManyRequestsException') {
                 return res.status(429).json({
                     message: 'Too many attempts. Please try again later.',
                     code: 'RATE_LIMIT_EXCEEDED'

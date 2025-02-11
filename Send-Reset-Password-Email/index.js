@@ -24,24 +24,33 @@ const appPromise = initialize().then(initializedApp => {
         let { identifier } = req.body;
 
         try {
-            let params = {
-                UserPoolId: secrets.USER_POOL_ID,
-                Filter: `username = "${identifier}"`,
-                Limit: 1
-            };
+            let userData;
+            try {
+                const userParams = {
+                    UserPoolId: secrets.USER_POOL_ID,
+                    Filter: identifier.includes('@')
+                        ? `email = "${identifier}"`
+                        : `username = "${identifier}"`,
+                    Limit: 1
+                };
 
-            let userData = await cognito.listUsers(params).promise();
+                userData = await cognito.listUsers(userParams).promise();
 
-            if (!userData.Users || userData.Users.length === 0) {
-                params.Filter = `email = "${identifier}"`;
-                userData = await cognito.listUsers(params).promise();
-            }
+                if ((!userData.Users || userData.Users.length === 0) && !identifier.includes('@')) {
+                    userData = await cognito.listUsers({
+                        ...userParams,
+                        Filter: `email = "${identifier}"`
+                    }).promise();
+                }
 
-            if (!userData.Users || userData.Users.length === 0) {
-                return res.status(404).json({
-                    message: 'No account found with this identifier.',
-                    code: 'USER_NOT_FOUND'
-                });
+                if (!userData.Users || userData.Users.length === 0) {
+                    return res.status(401).json({
+                        message: 'Invalid credentials.',
+                        code: 'INVALID_CREDENTIALS'
+                    });
+                }
+            } catch (error) {
+                console.error('Error looking up user:', error);
             }
 
             const user = userData.Users[0];
@@ -65,7 +74,7 @@ const appPromise = initialize().then(initializedApp => {
                     })
                 } catch (resendError) {
                     console.error('Error resending verification code:', resendError);
-                    if (resendError.code === 'LimitExceededException') {
+                    if (resendError.code === 'LimitExceededException' || resendError.code === 'TooManyRequestsException') {
                         return res.status(429).json({
                             message: 'Too many attempts. Please try again later.',
                             code: 'RATE_LIMIT_EXCEEDED'
@@ -93,26 +102,12 @@ const appPromise = initialize().then(initializedApp => {
         } catch (error) {
             console.error('Error sending email:', error);
             switch (error.code) {
-                case 'UserNotFoundException':
-                    return res.status(404).json({
-                        message: 'No account found with this email address.',
-                        code: 'USER_NOT_FOUND'
-                    });
-                case 'InvalidParameterException':
-                    return res.status(400).json({
-                        message: 'Invalid email format.',
-                        code: 'INVALID_EMAIL'
-                    });
                 case 'TooManyRequestsException':
+                case 'LimitExceededException':
                     return res.status(429).json({
                         message: 'Too many attempts. Please try again later.',
                         code: 'RATE_LIMIT_EXCEEDED',
-                    });
-                case 'LimitExceededException':
-                    return res.status(429).json({
-                        message: 'Request limit exceeded. Please try again later.',
-                        code: 'RATE_LIMIT_EXCEEDED'
-                    });
+                    })
                 default:
                     return res.status(500).json({
                         message: 'Internal server error.',
