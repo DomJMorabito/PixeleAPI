@@ -51,6 +51,17 @@ const appPromise = initialize().then(initializedApp => {
             const username = user.Username;
             const email = user.Attributes.find(attribute => attribute.Name === 'email')?.Value;
 
+            if (user.UserStatus !== 'CONFIRMED') {
+                return res.status(400).json({
+                    message: 'Account not verified.',
+                    code: 'UNCONFIRMED_ACCOUNT',
+                    details: {
+                        username: username,
+                        email: email
+                    }
+                });
+            }
+
             const forgotPasswordParams = {
                 ClientId: secrets.USER_POOL_CLIENT_ID,
                 Username: username
