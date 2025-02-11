@@ -174,6 +174,12 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                         message: 'Too many attempts. Please try again later.',
                         code: 'RATE_LIMIT_EXCEEDED'
                     })
+                case 'UserNotFoundException':
+                case 'NotAuthorizedException':
+                    return res.status(401).json({
+                        message: 'Invalid credentials.',
+                        code: 'INVALID_CREDENTIALS'
+                    })
                 default:
                     return res.status(500).json({
                         message: 'Internal Server Error',
