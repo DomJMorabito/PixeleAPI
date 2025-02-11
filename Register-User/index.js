@@ -36,31 +36,21 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
             if (emailExists && usernameExists) {
                 return res.status(409).json({
                     message: 'Both Email and Username are already in use.',
-                    code: 'DUPLICATE_CREDENTIALS',
-                    details: {
-                        email: email,
-                        username: username
-                    }
+                    code: 'DUPLICATE_CREDENTIALS'
                 });
             }
 
             if (emailExists) {
                 return res.status(409).json({
                     message: 'Email already in use.',
-                    code: 'EMAIL_EXISTS',
-                    details: {
-                        email: email
-                    }
+                    code: 'EMAIL_EXISTS'
                 });
             }
 
             if (usernameExists) {
                 return res.status(409).json({
                     message: 'Username already in use.',
-                    code: 'USERNAME_EXISTS',
-                    details: {
-                        username: username
-                    }
+                    code: 'USERNAME_EXISTS'
                 });
             }
 
@@ -102,11 +92,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
 
                     return res.status(201).json({
                         message: 'Registration Successful!',
-                        code: 'REGISTRATION_SUCCESS',
-                        details: {
-                            email: email,
-                            username: username
-                        }
+                        code: 'REGISTRATION_SUCCESS'
                     });
                 } catch (cognitoError) {
                     await connection.rollback();
@@ -117,33 +103,22 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 console.error('Database Insertion failed:', dbError);
                 return res.status(500).json({
                     message: 'Database error occurred. Please try again later.',
-                    code: 'DATABASE_ERROR',
-                    details: {
-                        error: dbError,
-                        email: email,
-                        username: username
-                    }
+                    code: 'DATABASE_ERROR'
                 });
             } finally {
                 connection.release();
             }
         } catch (error) {
-            console.error('Cognito sign up error:', error);
+            console.error('Registration error:', error);
             if (error.code === 'LimitExceededException') {
                 return res.status(429).json({
                     message: 'Too many attempts. Please try again later.',
-                    code: 'RATE_LIMIT_EXCEEDED',
-                    details: {
-                        error: error
-                    }
+                    code: 'RATE_LIMIT_EXCEEDED'
                 });
             }
             return res.status(500).json({
                 message: 'Internal Server Error',
-                code: 'SERVER_ERROR',
-                details: {
-                    error: error
-                }
+                code: 'SERVER_ERROR'
             });
         }
     });

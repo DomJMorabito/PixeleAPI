@@ -35,20 +35,14 @@ const appPromise = initialize().then(initializedApp => {
                 if (userResponse.UserStatus === 'CONFIRMED') {
                     return res.status(409).json({
                         message: 'This account is already verified.',
-                        code: 'ALREADY_VERIFIED',
-                        details: {
-                            username: username
-                        }
+                        code: 'ALREADY_VERIFIED'
                     });
                 }
             } catch (error) {
                 if (error.code === 'UserNotFoundException') {
                     return res.status(404).json({
                         message: 'User not found.',
-                        code: 'USER_NOT_FOUND',
-                        details: {
-                            username: username
-                        }
+                        code: 'USER_NOT_FOUND'
                     });
                 }
             }
@@ -62,29 +56,20 @@ const appPromise = initialize().then(initializedApp => {
 
             res.status(200).json({
                 message: 'Successfully resent verification code.',
-                code: 'RESEND_SUCCESS',
-                details: {
-                    username: username
-                }
+                code: 'RESEND_SUCCESS'
             });
         } catch (error) {
             console.error('Error resending verification code:', error);
-            if (error.name === 'LimitExceededException') {
+            if (error.code === 'LimitExceededException') {
                 return res.status(429).json({
                     message: 'Too many attempts. Please try again later.',
-                    code: 'RATE_LIMIT_EXCEEDED',
-                    details: {
-                        error: error
-                    }
+                    code: 'RATE_LIMIT_EXCEEDED'
                 });
             }
 
             res.status(500).json({
                 message: 'Failed to resend verification code.',
-                code: 'SERVER_ERROR',
-                details: {
-                    error: error
-                }
+                code: 'SERVER_ERROR'
             });
         }
     });

@@ -83,13 +83,24 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                         return res.status(403).json({
                             message: 'Email verification required. Confirmation code has been resent.',
                             code: 'CONFIRM_SIGN_UP',
-                            details: {
-                                username,
-                                email
+                            params: {
+                                username: username,
+                                email: email
                             }
                         })
                     } catch (resendError) {
-                        console.error('Error resending confirmation code:', resendError);
+                        console.error('Error resending verification code:', resendError);
+                        if (resendError.code === 'LimitExceededException') {
+                            return res.status(429).json({
+                                message: 'Too many attempts. Please try again later.',
+                                code: 'RATE_LIMIT_EXCEEDED'
+                            });
+                        }
+
+                        res.status(500).json({
+                            message: 'Failed to resend verification code.',
+                            code: 'SERVER_ERROR'
+                        });
                     }
                 }
             } catch (statusCheckError) {
@@ -101,13 +112,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
             if (!authResult.AuthenticationResult) {
                 return res.status(500).json({
                     message: 'Authentication failed, no tokens received.',
-                    code: 'AUTH_FAILED',
-                    details: {
-                        username,
-                        email,
-                        challengeName: authResult.ChallengeName,
-                        session: authResult.Session
-                    }
+                    code: 'AUTH_FAILED'
                 });
             }
 
@@ -128,12 +133,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 console.error('Error updating last_login:', dbError);
                 return res.status(500).json({
                     message: 'Database error occurred. Please try again later.',
-                    code: 'DATABASE_ERROR',
-                    details: {
-                        error: dbError,
-                        email: email,
-                        username: username
-                    }
+                    code: 'DATABASE_ERROR'
                 });
             } finally {
                 connection.release();
@@ -173,48 +173,32 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 message: 'Successfully logged in!'
             });
         } catch (error) {
+            console.error('Login error:', error);
             switch (error.name) {
                 case 'NotAuthorizedException':
                     return res.status(401).json({
                         message: 'Invalid Username/Email or Password.',
-                        code: 'INVALID_CREDENTIALS',
-                        details: {
-                            error: error
-                        }
+                        code: 'INVALID_CREDENTIALS'
                     })
                 case 'UserNotFoundException':
                     return res.status(404).json({
                         message: 'No account associated with this Email/Username.',
-                        code: 'USER_NOT_FOUND',
-                        details: {
-                            identifier: identifier,
-                            error: error
-                        }
+                        code: 'USER_NOT_FOUND'
                     })
                 case 'TooManyRequestsException':
                     return res.status(429).json({
                         message: 'Too many attempts. Please try again later.',
-                        code: 'RATE_LIMIT_EXCEEDED',
-                        details: {
-                            error: error
-                        }
+                        code: 'RATE_LIMIT_EXCEEDED'
                     })
                 case 'LimitExceededException':
                     return res.status(429).json({
                         message: 'Request limit exceeded. Please try again later.',
-                        code: 'LIMIT_EXCEEDED',
-                        details: {
-                            error: error
-                        }
+                        code: 'LIMIT_EXCEEDED'
                     })
                 default:
-                    console.error('Login error:', error);
                     return res.status(500).json({
                         message: 'Internal Server Error',
-                        code: 'SERVER_ERROR',
-                        details: {
-                            error: error
-                        }
+                        code: 'SERVER_ERROR'
                     });
             }
         }

@@ -48,8 +48,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                     await connection.rollback();
                     return res.status(404).json({
                         message: 'User not found.',
-                        code: 'USER_NOT_FOUND',
-                        details: { username }
+                        code: 'USER_NOT_FOUND'
                     });
                 }
 
@@ -57,19 +56,14 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
 
                 res.status(200).json({
                     message: 'Verification Successful!',
-                    code: 'VERIFICATION_SUCCESS',
-                    details: { username }
+                    code: 'VERIFICATION_SUCCESS'
                 });
             } catch (dbError) {
                 console.error('Database error:', dbError);
                 await connection.rollback();
                 return res.status(500).json({
                     message: 'Database error occurred. Please try again later.',
-                    code: 'DATABASE_ERROR',
-                    details: {
-                        error: dbError,
-                        username: username
-                    }
+                    code: 'DATABASE_ERROR'
                 });
             } finally {
                 connection.release();
@@ -77,46 +71,31 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
         } catch (error) {
             console.error('Verification error:', error);
             switch (error.code) {
-                case 'UserNotFoundException':
-                    return res.status(404).json({
-                        message: 'User not found.',
-                        code: 'USER_NOT_FOUND',
-                        details: { username }
-                    });
                 case 'CodeMismatchException':
                     return res.status(400).json({
                         message: 'Verification code is incorrect.',
-                        code: 'INVALID_CODE',
-                        details: { username }
-                    });
+                        code: 'INVALID_CODE'
+                    })
                 case 'NotAuthorizedException':
                     return res.status(409).json({
                         message: 'This account is already verified.',
-                        code: 'ALREADY_VERIFIED',
-                        details: { username }
-                    });
+                        code: 'ALREADY_VERIFIED'
+                    })
                 case 'ExpiredCodeException':
                     return res.status(410).json({
                         message: 'Verification code has expired. Please request a new one.',
-                        code: 'EXPIRED_CODE',
-                        details: { username }
-                    });
+                        code: 'EXPIRED_CODE'
+                    })
                 case 'LimitExceededException':
                     return res.status(429).json({
                         message: 'Too many attempts. Please try again later.',
-                        code: 'RATE_LIMIT_EXCEEDED',
-                        details: {
-                            error
-                        }
-                    });
+                        code: 'RATE_LIMIT_EXCEEDED'
+                    })
                 default:
                     res.status(500).json({
                         message: 'Unable to complete verification. Please try again later.',
-                        code: 'SERVER_ERROR',
-                        details: {
-                            error: error.message
-                        }
-                    });
+                        code: 'SERVER_ERROR'
+                    })
             }
         }
     });

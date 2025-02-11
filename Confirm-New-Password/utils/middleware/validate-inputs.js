@@ -9,41 +9,38 @@ export const validateInputs = (req, res, next) => {
         return res.status(400).json({
             message: 'All fields are required.',
             code: 'MISSING_FIELDS',
-            details: {
-                missingFields: [
-                    !username && 'username',
-                    !confirmationCode && 'code',
-                    !newPassword && 'password',
-                    !newPassword && 'confirmPassword'
-                ].filter(Boolean)
-            }
+            requirements: [
+                !username && 'username',
+                !confirmationCode && 'code',
+                !newPassword && 'password',
+                !newPassword && 'confirmPassword'
+            ].filter(Boolean)
         });
     }
 
     if (!validatePassword(newPassword)) {
         return res.status(400).json({
             message: 'Password requirements not met.',
-            code: 'INVALID_PASSWORD',
-            details: {
-                minLength: 8,
-                requiresNumber: true,
-                requiresSpecialChar: true
-            }
+            code: 'INVALID_PASSWORD'
         });
     }
 
-    if (typeof username !== 'string' || typeof confirmationCode !== 'string' || typeof newPassword !== 'string') {
+    if (typeof username !== 'string'
+        || typeof confirmationCode !== 'string'
+        || typeof newPassword !== 'string'
+        || !username.trim()
+        || !confirmationCode.trim()
+        || !newPassword.trim()
+    ) {
         return res.status(400).json({
             message: 'All fields must be valid.',
             code: 'INVALID_INPUT',
-            details: {
-                invalidFields: [
-                    typeof username !== 'string' && 'username',
-                    typeof confirmationCode !== 'string' && 'code',
-                    typeof newPassword !== 'string' && 'password',
-                    typeof newPassword !== 'string' && 'confirmPassword'
-                ].filter(Boolean)
-            }
+            requirements: [
+                typeof username !== 'string' && 'username',
+                typeof confirmationCode !== 'string' && 'code',
+                typeof newPassword !== 'string' && 'password',
+                typeof newPassword !== 'string' && 'confirmPassword'
+            ].filter(Boolean)
         });
     }
 

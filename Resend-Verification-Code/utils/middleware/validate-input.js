@@ -5,23 +5,19 @@ export const validateInput = (req, res, next) => {
         return res.status(400).json({
             message: 'All fields are required.',
             code: 'MISSING_FIELDS',
-            details: {
-                missingFields: [
-                    !username && 'username',
-                ].filter(Boolean)
-            }
+            requirements: [
+                !username || 'username'
+            ].filter(Boolean)
         });
     }
 
-    if (typeof username !== 'string') {
+    if (typeof username !== 'string' || !username.trim()) {
         return res.status(400).json({
             message: 'All fields must be valid.',
             code: 'INVALID_INPUT',
-            details: {
-                invalidFields: [
-                    typeof username !== 'string' && 'username'
-                ].filter(Boolean)
-            }
+            requirements: [
+                typeof username !== 'string' && 'username'
+            ].filter(Boolean)
         });
     }
 

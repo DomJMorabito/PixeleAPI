@@ -40,10 +40,7 @@ const appPromise = initialize().then(initializedApp => {
             if (!userData.Users || userData.Users.length === 0) {
                 return res.status(404).json({
                     message: 'No account found with this identifier.',
-                    code: 'USER_NOT_FOUND',
-                    details: {
-                        identifier: identifier,
-                    }
+                    code: 'USER_NOT_FOUND'
                 });
             }
 
@@ -52,14 +49,34 @@ const appPromise = initialize().then(initializedApp => {
             const email = user.Attributes.find(attribute => attribute.Name === 'email')?.Value;
 
             if (user.UserStatus !== 'CONFIRMED') {
-                return res.status(400).json({
-                    message: 'Account not verified.',
-                    code: 'UNCONFIRMED_ACCOUNT',
-                    details: {
-                        username: username,
-                        email: email
+                try {
+                    await cognito.resendConfirmationCode({
+                        ClientId: secrets.USER_POOL_CLIENT_ID,
+                        Username: username
+                    }).promise();
+
+                    return res.status(403).json({
+                        message: 'Email verification required. Confirmation code has been resent.',
+                        code: 'CONFIRM_SIGN_UP',
+                        params: {
+                            username: username,
+                            email: email
+                        }
+                    })
+                } catch (resendError) {
+                    console.error('Error resending verification code:', resendError);
+                    if (resendError.code === 'LimitExceededException') {
+                        return res.status(429).json({
+                            message: 'Too many attempts. Please try again later.',
+                            code: 'RATE_LIMIT_EXCEEDED'
+                        });
                     }
-                });
+
+                    res.status(500).json({
+                        message: 'Failed to resend verification code.',
+                        code: 'SERVER_ERROR'
+                    });
+                }
             }
 
             const forgotPasswordParams = {
@@ -71,56 +88,35 @@ const appPromise = initialize().then(initializedApp => {
 
             return res.status(200).json({
                 message: 'Password reset email sent successfully.',
-                code: 'EMAIL_SEND_SUCCESS',
-                details: {
-                    email,
-                    username
-                }
+                code: 'EMAIL_SEND_SUCCESS'
             });
         } catch (error) {
+            console.error('Error sending email:', error);
             switch (error.code) {
                 case 'UserNotFoundException':
                     return res.status(404).json({
                         message: 'No account found with this email address.',
-                        code: 'USER_NOT_FOUND',
-                        details: {
-                            identifier: identifier,
-                            error: error
-                        }
+                        code: 'USER_NOT_FOUND'
                     });
                 case 'InvalidParameterException':
                     return res.status(400).json({
                         message: 'Invalid email format.',
-                        code: 'INVALID_EMAIL',
-                        details: {
-                            identifier: identifier,
-                            error: error
-                        }
+                        code: 'INVALID_EMAIL'
                     });
                 case 'TooManyRequestsException':
                     return res.status(429).json({
                         message: 'Too many attempts. Please try again later.',
                         code: 'RATE_LIMIT_EXCEEDED',
-                        details: {
-                            error: error
-                        }
                     });
                 case 'LimitExceededException':
                     return res.status(429).json({
                         message: 'Request limit exceeded. Please try again later.',
-                        code: 'RATE_LIMIT_EXCEEDED',
-                        details: {
-                            error: error
-                        }
+                        code: 'RATE_LIMIT_EXCEEDED'
                     });
                 default:
-                    console.error('Error sending email:', error);
                     return res.status(500).json({
                         message: 'Internal server error.',
-                        code: 'SERVER_ERROR',
-                        details: {
-                            error: error
-                        }
+                        code: 'SERVER_ERROR'
                     });
             }
         }

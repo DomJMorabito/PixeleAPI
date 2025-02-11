@@ -2,7 +2,6 @@
 
 import express from 'express';
 import serverless from 'serverless-http';
-import { confirmResetPassword } from 'aws-amplify/auth';
 import AWS from 'aws-sdk';
 
 // Utils Imports:
@@ -30,71 +29,86 @@ const appPromise = initialize().then(initializedApp => {
                 Username: username
             }
 
+            let userData;
             try {
-                await cognito.adminGetUser(params).promise();
+                userData = await cognito.adminGetUser(params).promise();
             } catch (error) {
                 if (error.code === 'UserNotFoundException') {
                     return res.status(404).json({
                         message: 'User not found.',
-                        code: 'USER_NOT_FOUND',
-                        details: {
-                            username: username,
-                            error: error
-                        }
+                        code: 'USER_NOT_FOUND'
                     });
                 }
             }
 
-            await confirmResetPassword({
-                username: username,
-                confirmationCode: confirmationCode,
-                newPassword
-            });
+            if (userData.UserStatus !== 'CONFIRMED') {
+                const email = userData.UserAttributes.find(attribute => attribute.Name === 'email')?.Value;
+                try {
+                    await cognito.resendConfirmationCode({
+                        ClientId: secrets.USER_POOL_CLIENT_ID,
+                        Username: username
+                    }).promise();
+
+                    return res.status(403).json({
+                        message: 'Email verification required. Confirmation code has been resent.',
+                        code: 'CONFIRM_SIGN_UP',
+                        params: {
+                            username: username,
+                            email: email
+                        }
+                    })
+                } catch (resendError) {
+                    console.error('Error resending verification code:', resendError);
+                    if (resendError.code === 'LimitExceededException') {
+                        return res.status(429).json({
+                            message: 'Too many attempts. Please try again later.',
+                            code: 'RATE_LIMIT_EXCEEDED'
+                        });
+                    }
+
+                    res.status(500).json({
+                        message: 'Failed to resend verification code.',
+                        code: 'SERVER_ERROR'
+                    });
+                }
+            }
+
+            const confirmPasswordParams = {
+                ClientId: secrets.USER_POOL_CLIENT_ID,
+                Username: username,
+                ConfirmationCode: confirmationCode,
+                Password: newPassword
+            }
+
+            await cognito.confirmForgotPassword(confirmPasswordParams).promise();
 
             res.status(200).json({
                 message: 'Successfully reset password.',
-                code: 'PASSWORD_RESET_SUCCESS',
-                details: {
-                    username: username
-                }
+                code: 'PASSWORD_RESET_SUCCESS'
             });
         } catch (error) {
             console.error('Error confirming password reset:', error);
             if (error.name === 'CodeMismatchException') {
                 return res.status(400).json({
                     message: 'Invalid confirmation code.',
-                    code: 'INVALID_CODE',
-                    details: {
-                        code: confirmationCode,
-                        error: error
-                    }
+                    code: 'INVALID_CODE'
                 });
             }
             if (error.name === 'ExpiredCodeException') {
                 return res.status(400).json({
                     message: 'Confirmation code has expired.',
-                    code: 'EXPIRED_CODE',
-                    details: {
-                        code: confirmationCode,
-                        error: error
-                    }
+                    code: 'EXPIRED_CODE'
                 });
             }
             if (error.name === 'LimitExceededException') {
                 return res.status(429).json({
                     message: 'Too many attempts. Please try again later.',
-                    code: 'RATE_LIMIT_EXCEEDED',
-                    details: {
-                        error: error
-                    }
+                    code: 'RATE_LIMIT_EXCEEDED'
                 });
             }
             return res.status(500).json({
                 message: 'Internal Server Error',
-                code: 'SERVER_ERROR',
-                details: {
-                    error: error
-                }
+                code: 'SERVER_ERROR'
             });
         }
     });

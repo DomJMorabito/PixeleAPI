@@ -5,25 +5,25 @@ export const validateInput = (req, res, next) => {
         return res.status(400).json({
             message: 'All fields are required.',
             code: 'MISSING_FIELDS',
-            details: {
-                missingFields: [
-                    !username && 'username',
-                    !verificationCode && 'verificationCode',
-                ].filter(Boolean)
-            }
+            requirements: [
+                !username && 'username',
+                !verificationCode && 'code'
+            ].filter(Boolean)
         });
     }
 
-    if (typeof username !== 'string' || typeof verificationCode !== 'string') {
+    if (typeof username !== 'string'
+        || typeof verificationCode !== 'string'
+        || !username.trim()
+        || !verificationCode.trim()
+    ) {
         return res.status(400).json({
             message: 'All fields must be valid.',
             code: 'INVALID_INPUT',
-            details: {
-                invalidFields: [
-                    typeof username !== 'string' && 'username',
-                    typeof verificationCode !== 'string' && 'verificationCode'
-                ].filter(Boolean)
-            }
+            requirements: [
+                typeof username !== 'string' && 'username',
+                typeof verificationCode !== 'string' && 'code'
+            ].filter(Boolean)
         });
     }
 

@@ -38,18 +38,12 @@ const appPromise = initialize().then(initializedApp => {
             if (error.code === 'LimitExceededException') {
                 return res.status(429).json({
                     message: 'Too many attempts. Please try again later.',
-                    code: 'RATE_LIMIT_EXCEEDED',
-                    details: {
-                        error: error
-                    }
+                    code: 'RATE_LIMIT_EXCEEDED'
                 });
             }
             return res.status(500).json({
                 message: 'Internal Server Error',
-                code: 'SERVER_ERROR',
-                details: {
-                    error: error
-                }
+                code: 'SERVER_ERROR'
             });
         }
     });
