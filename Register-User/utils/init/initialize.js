@@ -1,28 +1,15 @@
 // Package Imports:
 
 import express from 'express';
-import { Amplify } from 'aws-amplify';
 
 // Package Imports:
 
-import { getDbSecrets, getCognitoSecrets } from '../aws/secrets.js';
+import { getDbSecrets } from '../aws/secrets.js';
 import { createPool } from '../db/pool.js';
 
 export const initialize = async () => {
     try {
-        const [dbSecrets, cognitoSecrets] = await Promise.all([
-            getDbSecrets(),
-            getCognitoSecrets()
-        ]);
-
-        Amplify.configure({
-            Auth: {
-                Cognito: {
-                    userPoolClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
-                    userPoolId: cognitoSecrets.USER_POOL_ID,
-                }
-            }
-        });
+        const dbSecrets = await getDbSecrets();
 
         const app = express();
         const pool = createPool(dbSecrets);

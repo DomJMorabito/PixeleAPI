@@ -3,7 +3,6 @@
 import express from 'express';
 import serverless from 'serverless-http';
 import AWS from 'aws-sdk';
-import { signUp } from 'aws-amplify/auth';
 
 // Utils Imports:
 
@@ -85,20 +84,24 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 ));
 
                 try {
-                    await signUp({
-                        username: username,
-                        password: password,
-                        options: {
-                            userAttributes: {
-                                email: email,
+                    const signUpParams = {
+                        ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
+                        Username: username,
+                        Password: password,
+                        UserAttributes: [
+                            {
+                                Name: 'email',
+                                Value: email
                             }
-                        }
-                    });
+                        ]
+                    };
+
+                    await cognito.signUp(signUpParams).promise();
 
                     await connection.commit();
 
                     return res.status(201).json({
-                        message: 'Registration Successful! Please check your email for verification.',
+                        message: 'Registration Successful!',
                         code: 'REGISTRATION_SUCCESS',
                         details: {
                             email: email,
