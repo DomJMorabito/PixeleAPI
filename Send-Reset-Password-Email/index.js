@@ -97,7 +97,11 @@ const appPromise = initialize().then(initializedApp => {
 
             return res.status(200).json({
                 message: 'Password reset email sent successfully.',
-                code: 'EMAIL_SEND_SUCCESS'
+                code: 'EMAIL_SEND_SUCCESS',
+                params: {
+                    username: username,
+                    email: email
+                }
             });
         } catch (error) {
             console.error('Error sending email:', error);
