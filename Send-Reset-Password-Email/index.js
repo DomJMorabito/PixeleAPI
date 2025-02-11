@@ -2,7 +2,6 @@
 
 import express from 'express';
 import serverless from 'serverless-http';
-import { resetPassword } from 'aws-amplify/auth';
 import AWS from 'aws-sdk';
 
 // Utils Imports:
@@ -52,7 +51,12 @@ const appPromise = initialize().then(initializedApp => {
             const username = user.Username;
             const email = user.Attributes.find(attribute => attribute.Name === 'email')?.Value;
 
-            await resetPassword({ username });
+            const forgotPasswordParams = {
+                ClientId: secrets.USER_POOL_CLIENT_ID,
+                Username: username
+            }
+
+            await cognito.forgotPassword(forgotPasswordParams).promise();
 
             return res.status(200).json({
                 message: 'Password reset email sent successfully.',
