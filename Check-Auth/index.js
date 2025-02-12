@@ -122,14 +122,9 @@ const appPromise = initialize().then(({ app: initializedApp}) => {
                     AccessToken: sessionToken
                 }).promise();
 
-                const userDetails = {
-                    UserPoolId: secrets.USER_POOL_ID,
-                    Username: userResult.Username
-                }.promise();
-
                 const userInfo = {
-                    username: userDetails.Username,
-                    email: userDetails.UserAttributes.find(attribute => attribute.name === 'email').Value
+                    username: userResult.Username,
+                    email: userResult.UserAttributes.find(attribute => attribute.name === 'email').Value
                 }
 
                 return res.status(200).json({
