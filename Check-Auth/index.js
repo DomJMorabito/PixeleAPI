@@ -124,7 +124,7 @@ const appPromise = initialize().then(({ app: initializedApp}) => {
 
                 const userInfo = {
                     username: userResult.Username,
-                    email: userResult.UserAttributes.find(attribute => attribute.name === 'email').Value
+                    email: userResult.UserAttributes.find(attribute => attribute.Name === 'email').Value
                 }
 
                 return res.status(200).json({
