@@ -173,7 +173,7 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                         message: 'Account temporarily locked.',
                         code: 'ACCOUNT_LOCKED',
                         params: {
-                            username: userData?.User[0].Username,
+                            username: userData?.Users[0].Username,
                             email: userData?.Users[0]?.Attributes?.find(attr => attr.Name === 'email')?.Value
                         }
                     })
