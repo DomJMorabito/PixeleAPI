@@ -28,8 +28,8 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
         let { identifier, password } = req.body;
 
         let username;
+        let userData;
         try {
-            let userData;
             const userParams = {
                 UserPoolId: cognitoSecrets.USER_POOL_ID,
                 Filter: identifier.includes('@')
@@ -168,6 +168,15 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
         } catch (error) {
             console.error('Login error:', error);
             switch (error.name) {
+                case 'PasswordResetRequiredException':
+                    return res.status(403).json({
+                        message: 'Account temporarily locked.',
+                        code: 'ACCOUNT_LOCKED',
+                        params: {
+                            username: userData?.User[0].Username,
+                            email: userData?.Users[0]?.Attributes?.find(attr => attr.Name === 'email')?.Value
+                        }
+                    })
                 case 'TooManyRequestsException':
                 case 'LimitExceededException':
                     return res.status(429).json({
