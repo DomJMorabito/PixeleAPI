@@ -97,6 +97,59 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 console.error('Error checking confirmation status:', statusCheckError);
             }
 
+            const connection = await pool.getConnection();
+            try {
+                await connection.beginTransaction();
+                const [lockStatus] = await connection.execute(
+                    'SELECT failed_login_attempts, last_failed_login_attempt FROM users where username = ?',
+                    [username]
+                );
+                await connection.commit();
+
+                if (lockStatus[0]) {
+                    const lastFailedLoginAttempt = new Date(lockStatus[0].last_failed_login_attempt);
+                    const lockoutDuration = 15 * 60 * 1000;
+                    const unlockTime = new Date(lastFailedLoginAttempt.getTime() + lockoutDuration);
+
+                    if (lockStatus[0].failed_login_attempts >= 5 && unlockTime > new Date()) {
+                        return res.status(403).json({
+                            message: 'Account temporarily locked.',
+                            code: 'ACCOUNT_LOCKED'
+                        });
+                    }
+
+                    if (unlockTime <= new Date()) {
+                        try {
+                            await connection.beginTransaction();
+                            await connection.execute(
+                                'UPDATE users SET failed_login_attempts = 0, last_failed_login_attempt = NULL WHERE username = ?',
+                                [username]
+                            );
+                            await connection.commit();
+                        } catch (dbError) {
+                            await connection.rollback();
+                            console.error('Error resetting failed_login_attempts:', dbError);
+                            return res.status(500).json({
+                                message: 'Database error occurred. Please try again later.',
+                                code: 'DATABASE_ERROR'
+                            });
+                        } finally {
+                            await connection.release()
+                        }
+                    }
+                }
+            } catch (dbError) {
+                await connection.rollback();
+                console.error('Error updating failed_login_attempts:', dbError);
+                return res.status(500).json({
+                    message: 'Database error occurred. Please try again later.',
+                    code: 'DATABASE_ERROR'
+                });
+            }
+            finally {
+                await connection.release();
+            }
+
             const authParams = {
                 AuthFlow: 'ADMIN_USER_PASSWORD_AUTH',
                 ClientId: cognitoSecrets.USER_POOL_CLIENT_ID,
@@ -107,64 +160,94 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 }
             };
 
-            const authResult = await cognito.adminInitiateAuth(authParams).promise();
-
-            const { AccessToken, IdToken, RefreshToken } = authResult.AuthenticationResult;
-
-            const connection = await pool.getConnection();
-
             try {
-                await connection.beginTransaction();
+                const authResult = await cognito.adminInitiateAuth(authParams).promise();
+                const { AccessToken, IdToken, RefreshToken } = authResult.AuthenticationResult;
 
-                await connection.execute(
-                    'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE username = ?',
-                    [username]
-                );
-                await connection.commit();
-            } catch (dbError) {
-                await connection.rollback();
-                console.error('Error updating last_login:', dbError);
-                return res.status(500).json({
-                    message: 'Database error occurred. Please try again later.',
-                    code: 'DATABASE_ERROR'
+                const connection = await pool.getConnection();
+                try {
+                    await connection.beginTransaction();
+                    await connection.execute(
+                        'UPDATE users SET failed_login_attempts = 0, last_failed_login_attempt = NULL, last_login = CURRENT_TIMESTAMP WHERE username = ?',
+                        [username]
+                    );
+                    await connection.commit();
+                } catch (dbError) {
+                    await connection.rollback();
+                    console.error('Error updating last_login:', dbError);
+                    return res.status(500).json({
+                        message: 'Database error occurred. Please try again later.',
+                        code: 'DATABASE_ERROR'
+                    });
+                } finally {
+                    await connection.release();
+                }
+
+                const accessTokenPayload = jwtDecode(AccessToken);
+                const idTokenPayload = jwtDecode(IdToken);
+
+                res.cookie('pixele_session', AccessToken, {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: 'strict',
+                    maxAge: accessTokenPayload.exp * 1000 - Date.now(),
+                    path: '/',
+                    domain: 'pixele.gg'
                 });
-            } finally {
-                connection.release();
+
+                res.cookie('pixele_id', IdToken, {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: 'strict',
+                    maxAge: idTokenPayload.exp * 1000 - Date.now(),
+                    path: '/',
+                    domain: 'pixele.gg'
+                });
+
+                res.cookie('pixele_refresh', RefreshToken, {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: 'strict',
+                    maxAge: 90 * 24 * 60 * 60 * 1000,
+                    path: '/',
+                    domain: 'pixele.gg'
+                });
+
+                return res.status(200).json({
+                    message: 'Successfully logged in!'
+                });
+            } catch (authError) {
+                const connection = await pool.getConnection();
+                try {
+                    await connection.beginTransaction();
+                    await connection.execute(
+                        'UPDATE users SET failed_login_attempts = failed_login_attempts + 1, last_failed_login_attempt = CURRENT_TIMESTAMP WHERE username = ?',
+                        [username]
+                    );
+
+                    const [attempts] = await connection.execute(
+                        'SELECT failed_login_attempts FROM users WHERE username = ?',
+                        [username]
+                    );
+                    await connection.commit();
+
+                    if (attempts[0]?.failed_login_attempts >= 5) {
+                        return res.status(403).json({
+                            message: 'Account temporarily locked.',
+                            code: 'ACCOUNT_LOCKED'
+                        });
+                    }
+                } catch (dbError) {
+                    await connection.rollback();
+                    console.error('Error updating failed_login_attempts:', dbError);
+                    return res.status(500).json({
+                        message: 'Database error occurred. Please try again later.',
+                        code: 'DATABASE_ERROR'
+                    });
+                } finally {
+                    await connection.release();
+                }
             }
-
-            const accessTokenPayload = jwtDecode(AccessToken);
-            const idTokenPayload = jwtDecode(IdToken);
-
-            res.cookie('pixele_session', AccessToken, {
-                httpOnly: true,
-                secure: true,
-                sameSite: 'strict',
-                maxAge: accessTokenPayload.exp * 1000 - Date.now(),
-                path: '/',
-                domain: 'pixele.gg'
-            });
-
-            res.cookie('pixele_id', IdToken, {
-                httpOnly: true,
-                secure: true,
-                sameSite: 'strict',
-                maxAge: idTokenPayload.exp * 1000 - Date.now(),
-                path: '/',
-                domain: 'pixele.gg'
-            });
-
-            res.cookie('pixele_refresh', RefreshToken, {
-                httpOnly: true,
-                secure: true,
-                sameSite: 'strict',
-                maxAge: 90 * 24 * 60 * 60 * 1000,
-                path: '/',
-                domain: 'pixele.gg'
-            });
-
-            return res.status(200).json({
-                message: 'Successfully logged in!'
-            });
         } catch (error) {
             console.error('Login error:', error);
             switch (error.name) {
