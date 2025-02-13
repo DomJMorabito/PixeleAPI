@@ -8,7 +8,7 @@
         body: {
             message: 'Account temporarily locked.',
             code: 'ACCOUNT_LOCKED',
-            requirements: {
+            required: {
                 remainingTime: remainingTime
             }
         }
