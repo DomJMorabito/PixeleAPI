@@ -168,14 +168,10 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
         } catch (error) {
             console.error('Login error:', error);
             switch (error.name) {
-                case 'PasswordResetRequiredException':
+                case 'NotAuthorizedException':
                     return res.status(403).json({
-                        message: 'Account temporarily locked.',
-                        code: 'ACCOUNT_LOCKED',
-                        params: {
-                            username: userData?.Users[0].Username,
-                            email: userData?.Users[0]?.Attributes?.find(attr => attr.Name === 'email')?.Value
-                        }
+                        message: 'Account temporarily locked. Password attempt limit exceeded.',
+                        code: 'ACCOUNT_LOCKED'
                     })
                 case 'TooManyRequestsException':
                 case 'LimitExceededException':
@@ -184,7 +180,6 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                         code: 'RATE_LIMIT_EXCEEDED'
                     })
                 case 'UserNotFoundException':
-                case 'NotAuthorizedException':
                     return res.status(401).json({
                         message: 'Invalid credentials.',
                         code: 'INVALID_CREDENTIALS'
