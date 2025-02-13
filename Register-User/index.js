@@ -57,14 +57,10 @@ const appPromise = initialize().then(({ app: initializedApp, pool: initializedPo
                 );
 
                 const userId = userResult.insertId;
-                const [games] = await connection.execute('SELECT id FROM games');
-
-                await Promise.all(games.map(game =>
-                    connection.execute(
-                        'INSERT INTO game_stats (user_id, game_id) VALUES (?, ?)',
-                        [userId, game.id]
-                    )
-                ));
+                await connection.execute(
+                    'INSERT INTO game_stats (user_id, game_id) SELECT ?, id FROM games',
+                    [userId]
+                );
 
                 try {
                     const signUpParams = {
